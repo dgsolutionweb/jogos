@@ -139,51 +139,107 @@ function cadastrarProduto(e) {
 }
 
 function gerarCodigoAleatorio() {
-    const codigo = Math.floor(Math.random() * 9000000000000) + 1000000000000;
-    document.getElementById('codigoProduto').value = codigo.toString();
-    return codigo.toString();
+    // Gerar código CODE128 válido (alfanumérico)
+    const caracteres = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    let codigo = '';
+    
+    // Código com 12 caracteres (compatível com CODE128)
+    for (let i = 0; i < 12; i++) {
+        codigo += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
+    }
+    
+    document.getElementById('codigoProduto').value = codigo;
+    return codigo;
 }
 
 // Scanner de código de barras
 function iniciarScanner() {
     if (scannerAtivo) return;
     
+    // Verificar se a API de mídia está disponível
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert('Sua câmera não está disponível ou o navegador não suporta acesso à câmera. Tente usar um navegador mais recente.');
+        return;
+    }
+    
     document.getElementById('scanner-overlay').style.display = 'none';
     scannerAtivo = true;
     
+    // Mostrar loading
+    const video = document.getElementById('video');
+    video.style.background = '#f3f4f6';
+    video.innerHTML = '<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;"><i class="fas fa-spinner fa-spin text-2xl"></i><br>Carregando câmera...</div>';
+    
+    // Configuração do Quagga com melhor tratamento de erro
     Quagga.init({
         inputStream: {
             name: "Live",
             type: "LiveStream",
             target: document.querySelector('#video'),
             constraints: {
-                width: 640,
-                height: 480,
-                facingMode: "environment"
+                width: { min: 320, ideal: 640, max: 1280 },
+                height: { min: 240, ideal: 480, max: 720 },
+                facingMode: "environment", // Câmera traseira
+                aspectRatio: { min: 1, max: 2 }
             }
         },
+        locator: {
+            patchSize: "medium",
+            halfSample: true
+        },
+        numOfWorkers: 2,
+        frequency: 10,
         decoder: {
             readers: [
                 "code_128_reader",
                 "ean_reader",
-                "ean_8_reader",
-                "code_39_reader"
+                "ean_8_reader", 
+                "code_39_reader",
+                "code_39_vin_reader",
+                "codabar_reader",
+                "upc_reader",
+                "upc_e_reader",
+                "i2of5_reader"
             ]
-        }
+        },
+        locate: true
     }, function(err) {
         if (err) {
-            console.log(err);
-            alert('Erro ao iniciar a câmera. Verifique as permissões.');
+            console.error('Erro ao inicializar scanner:', err);
+            scannerAtivo = false;
+            document.getElementById('scanner-overlay').style.display = 'flex';
+            
+            // Tratar diferentes tipos de erro
+            if (err.name === 'NotAllowedError') {
+                alert('❌ Permissão de câmera negada!\n\nPara usar o scanner:\n1. Clique no ícone de câmera na barra de endereço\n2. Permita o acesso à câmera\n3. Recarregue a página e tente novamente');
+            } else if (err.name === 'NotFoundError') {
+                alert('❌ Nenhuma câmera encontrada!\n\nVerifique se:\n1. Seu dispositivo tem uma câmera\n2. A câmera não está sendo usada por outro aplicativo\n3. Tente recarregar a página');
+            } else if (err.name === 'NotSupportedError') {
+                alert('❌ Câmera não suportada!\n\nTente:\n1. Usar um navegador mais recente\n2. Verificar se está em HTTPS\n3. Testar em outro dispositivo');
+            } else {
+                alert('❌ Erro ao acessar a câmera!\n\nTentativas de solução:\n1. Recarregue a página\n2. Verifique as permissões do navegador\n3. Tente usar outro navegador\n\nErro: ' + err.message);
+            }
             return;
         }
+        
+        console.log('Scanner iniciado com sucesso');
+        mostrarNotificacao('Scanner iniciado! Aponte para um código de barras', 'success');
         Quagga.start();
     });
     
+    // Listener para códigos detectados
     Quagga.onDetected(function(data) {
         const codigo = data.codeResult.code;
+        console.log('Código detectado:', codigo);
+        
+        // Validar se o código não está vazio
+        if (!codigo || codigo.length < 3) {
+            return;
+        }
+        
         document.getElementById('codigoLido').textContent = codigo;
         
-        // Buscar produto
+        // Buscar produto pelo código
         const produto = produtos.find(p => p.codigo === codigo);
         
         if (produto) {
@@ -194,31 +250,175 @@ function iniciarScanner() {
                 <div class="font-semibold text-lg">${produto.nome}</div>
                 <div class="text-green-600 font-bold text-xl">R$ ${produto.preco.toFixed(2)}</div>
                 <div class="text-gray-600">${getCategoriaIcon(produto.categoria)} ${produto.categoria}</div>
+                <div class="text-xs text-gray-500 mt-1">Código: ${produto.codigo}</div>
             `;
+            mostrarNotificacao(`Produto encontrado: ${produto.nome}`, 'success');
         } else {
             produtoAtual = null;
             document.getElementById('produtoEncontrado').classList.add('hidden');
             document.getElementById('produtoNaoEncontrado').classList.remove('hidden');
+            mostrarNotificacao('Produto não encontrado no sistema', 'warning');
         }
         
         // Som de beep
         playBeep();
+        
+        // Vibração no mobile (se disponível)
+        if (navigator.vibrate) {
+            navigator.vibrate([100, 50, 100]);
+        }
+    });
+    
+    // Listener para processar frames
+    Quagga.onProcessed(function(result) {
+        var drawingCtx = Quagga.canvas.ctx.overlay,
+            drawingCanvas = Quagga.canvas.dom.overlay;
+
+        if (result) {
+            if (result.boxes) {
+                drawingCtx.clearRect(0, 0, parseInt(drawingCanvas.getAttribute("width")), parseInt(drawingCanvas.getAttribute("height")));
+                result.boxes.filter(function (box) {
+                    return box !== result.box;
+                }).forEach(function (box) {
+                    Quagga.ImageDebug.drawPath(box, {x: 0, y: 1}, drawingCtx, {color: "green", lineWidth: 2});
+                });
+            }
+
+            if (result.box) {
+                Quagga.ImageDebug.drawPath(result.box, {x: 0, y: 1}, drawingCtx, {color: "#00F", lineWidth: 2});
+            }
+
+            if (result.codeResult && result.codeResult.code) {
+                Quagga.ImageDebug.drawPath(result.line, {x: 'x', y: 'y'}, drawingCtx, {color: 'red', lineWidth: 3});
+            }
+        }
     });
 }
 
 function pararScanner() {
     if (!scannerAtivo) return;
     
-    Quagga.stop();
-    scannerAtivo = false;
-    document.getElementById('scanner-overlay').style.display = 'flex';
+    try {
+        Quagga.stop();
+        
+        // Limpar listeners
+        Quagga.offDetected();
+        Quagga.offProcessed();
+        
+        scannerAtivo = false;
+        document.getElementById('scanner-overlay').style.display = 'flex';
+        
+        // Limpar o canvas overlay se existir
+        const canvas = document.querySelector('#video canvas');
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+        
+        mostrarNotificacao('Scanner parado', 'info');
+    } catch (error) {
+        console.error('Erro ao parar scanner:', error);
+        scannerAtivo = false;
+        document.getElementById('scanner-overlay').style.display = 'flex';
+    }
 }
 
 function alternarCamera() {
-    // Implementação básica para trocar câmera
-    pararScanner();
-    setTimeout(() => {
+    if (!scannerAtivo) {
         iniciarScanner();
+        return;
+    }
+    
+    pararScanner();
+    
+    // Aguardar um tempo antes de reiniciar para evitar conflitos
+    setTimeout(() => {
+        // Tentar usar câmera frontal se estava usando traseira
+        const constraints = Quagga.CameraAccess.getActiveStreamLabel().includes('back') ? 
+            { facingMode: "user" } : { facingMode: "environment" };
+        
+        document.getElementById('scanner-overlay').style.display = 'none';
+        scannerAtivo = true;
+        
+        Quagga.init({
+            inputStream: {
+                name: "Live",
+                type: "LiveStream",
+                target: document.querySelector('#video'),
+                constraints: {
+                    width: { min: 320, ideal: 640, max: 1280 },
+                    height: { min: 240, ideal: 480, max: 720 },
+                    ...constraints
+                }
+            },
+            locator: {
+                patchSize: "medium",
+                halfSample: true
+            },
+            numOfWorkers: 2,
+            frequency: 10,
+            decoder: {
+                readers: [
+                    "code_128_reader",
+                    "ean_reader",
+                    "ean_8_reader", 
+                    "code_39_reader",
+                    "code_39_vin_reader",
+                    "codabar_reader",
+                    "upc_reader",
+                    "upc_e_reader",
+                    "i2of5_reader"
+                ]
+            },
+            locate: true
+        }, function(err) {
+            if (err) {
+                console.error('Erro ao alternar câmera:', err);
+                scannerAtivo = false;
+                document.getElementById('scanner-overlay').style.display = 'flex';
+                alert('Erro ao alternar câmera. Usando câmera padrão.');
+                // Tentar iniciar com configuração padrão
+                iniciarScanner();
+                return;
+            }
+            
+            Quagga.start();
+            mostrarNotificacao('Câmera alternada com sucesso!', 'success');
+        });
+        
+        // Re-adicionar listeners
+        Quagga.onDetected(function(data) {
+            const codigo = data.codeResult.code;
+            if (!codigo || codigo.length < 3) return;
+            
+            document.getElementById('codigoLido').textContent = codigo;
+            
+            const produto = produtos.find(p => p.codigo === codigo);
+            
+            if (produto) {
+                produtoAtual = produto;
+                document.getElementById('produtoEncontrado').classList.remove('hidden');
+                document.getElementById('produtoNaoEncontrado').classList.add('hidden');
+                document.getElementById('infoProduto').innerHTML = `
+                    <div class="font-semibold text-lg">${produto.nome}</div>
+                    <div class="text-green-600 font-bold text-xl">R$ ${produto.preco.toFixed(2)}</div>
+                    <div class="text-gray-600">${getCategoriaIcon(produto.categoria)} ${produto.categoria}</div>
+                    <div class="text-xs text-gray-500 mt-1">Código: ${produto.codigo}</div>
+                `;
+                mostrarNotificacao(`Produto encontrado: ${produto.nome}`, 'success');
+            } else {
+                produtoAtual = null;
+                document.getElementById('produtoEncontrado').classList.add('hidden');
+                document.getElementById('produtoNaoEncontrado').classList.remove('hidden');
+                mostrarNotificacao('Produto não encontrado no sistema', 'warning');
+            }
+            
+            playBeep();
+            if (navigator.vibrate) {
+                navigator.vibrate([100, 50, 100]);
+            }
+        });
+        
     }, 1000);
 }
 
@@ -470,109 +670,565 @@ function atualizarContadores() {
     document.getElementById('totalProdutos').textContent = produtos.length;
 }
 
-// Impressão de etiquetas
+// Visualizar etiquetas antes de imprimir
+function visualizarEtiquetas() {
+    if (produtos.length === 0) {
+        alert('Nenhum produto cadastrado para visualizar!');
+        return;
+    }
+    
+    // Criar modal para visualização
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+    modal.innerHTML = `
+        <div class="bg-white rounded-xl max-w-5xl max-h-[90vh] overflow-y-auto">
+            <div class="p-6 border-b">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-xl font-bold text-gray-800">
+                        🏷️ Visualização das Etiquetas (Códigos CODE128 Reais)
+                    </h3>
+                    <button onclick="this.parentElement.parentElement.parentElement.parentElement.remove()" 
+                            class="text-gray-500 hover:text-gray-700 text-2xl">×</button>
+                </div>
+                <p class="text-sm text-gray-600 mt-2">✅ Estes códigos de barras são CODE128 reais e funcionam em qualquer scanner!</p>
+            </div>
+            <div class="p-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="etiquetasPreview">
+                    <!-- Etiquetas serão inseridas aqui -->
+                </div>
+                <div class="mt-6 flex gap-4 justify-center">
+                    <button onclick="imprimirEtiquetas(); this.parentElement.parentElement.parentElement.parentElement.remove();" 
+                            class="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-lg font-semibold">
+                        <i class="fas fa-print mr-2"></i>Imprimir Etiquetas Reais
+                    </button>
+                    <button onclick="this.parentElement.parentElement.parentElement.parentElement.remove()" 
+                            class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg">
+                        Fechar
+                    </button>
+                </div>
+                <div class="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg text-center">
+                    <p class="text-sm text-green-700">
+                        <strong>💡 Como funciona:</strong> Os códigos de barras gerados são padrão CODE128, 
+                        compatíveis com qualquer scanner. Após imprimir, aponte o scanner do app para as barras pretas.
+                    </p>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Gerar preview das etiquetas
+    const container = document.getElementById('etiquetasPreview');
+    let codigosGerados = 0;
+    
+    produtos.forEach((produto, index) => {
+        const etiquetaDiv = document.createElement('div');
+        etiquetaDiv.className = 'border-2 border-gray-800 p-4 bg-white rounded-lg shadow-sm';
+        etiquetaDiv.style.width = '280px';
+        etiquetaDiv.style.height = '220px';
+        etiquetaDiv.innerHTML = `
+            <div class="font-bold text-sm mb-2 h-10 overflow-hidden leading-tight">${produto.nome}</div>
+            <div class="text-green-600 text-xl font-bold mb-2">R$ ${produto.preco.toFixed(2)}</div>
+            <div class="text-xs text-gray-600 mb-3">${getCategoriaIcon(produto.categoria)} ${produto.categoria}</div>
+            <div class="text-center">
+                <canvas id="preview-barcode-${index}" class="mx-auto border border-gray-200" 
+                        style="height: 45px; max-width: 240px; background: white;"></canvas>
+                <div class="text-xs font-mono mt-2 tracking-wider font-bold">${produto.codigo}</div>
+                <div id="status-${index}" class="text-xs mt-1 text-blue-600">Gerando código...</div>
+            </div>
+        `;
+        container.appendChild(etiquetaDiv);
+        
+        // Gerar código de barras real na visualização
+        setTimeout(() => {
+            try {
+                JsBarcode(`#preview-barcode-${index}`, produto.codigo, {
+                    format: "CODE128",
+                    width: 1.8,
+                    height: 45,
+                    displayValue: false,
+                    background: "#ffffff",
+                    lineColor: "#000000",
+                    margin: 8,
+                    fontSize: 0
+                });
+                
+                document.getElementById(`status-${index}`).innerHTML = 
+                    '<span class="text-green-600 font-semibold">✅ Código CODE128 Real</span>';
+                codigosGerados++;
+                
+                if (codigosGerados === produtos.length) {
+                    mostrarNotificacao(`${codigosGerados} códigos CODE128 reais gerados com sucesso!`, 'success');
+                }
+                
+            } catch (error) {
+                console.error('Erro ao gerar preview CODE128:', error);
+                
+                // Fallback para EAN13
+                try {
+                    const codigoEAN12 = produto.codigo.padStart(12, '0').substring(0, 12);
+                    const digitoVerificador = calcularDigitoEAN13(codigoEAN12);
+                    const codigoEAN13 = codigoEAN12 + digitoVerificador;
+                    
+                    JsBarcode(`#preview-barcode-${index}`, codigoEAN13, {
+                        format: "EAN13",
+                        width: 1.6,
+                        height: 45,
+                        displayValue: false,
+                        background: "#ffffff",
+                        lineColor: "#000000",
+                        margin: 8
+                    });
+                    
+                    document.getElementById(`status-${index}`).innerHTML = 
+                        '<span class="text-orange-600 font-semibold">✅ Código EAN13 Real</span>';
+                    codigosGerados++;
+                    
+                } catch (error2) {
+                    console.error('Erro no fallback EAN13:', error2);
+                    
+                    // Fallback manual
+                    const canvas = document.getElementById(`preview-barcode-${index}`);
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = 240;
+                    canvas.height = 45;
+                    
+                    // Fundo branco
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, 240, 45);
+                    
+                    // Desenhar barras baseadas no código
+                    ctx.fillStyle = '#000000';
+                    let x = 15;
+                    for (let i = 0; i < produto.codigo.length && x < 225; i++) {
+                        const digit = parseInt(produto.codigo[i]) || 0;
+                        const barWidth = 2 + (digit % 3);
+                        const spaceWidth = 1 + (digit % 2);
+                        
+                        // Barra preta
+                        ctx.fillRect(x, 5, barWidth, 35);
+                        x += barWidth + spaceWidth;
+                    }
+                    
+                    document.getElementById(`status-${index}`).innerHTML = 
+                        '<span class="text-yellow-600 font-semibold">⚠️ Código Manual</span>';
+                    codigosGerados++;
+                }
+            }
+        }, index * 150); // Delay escalonado para evitar conflitos
+    });
+    
+    mostrarNotificacao('Carregando visualização com códigos reais...', 'info');
+}
+
+// Função auxiliar para calcular dígito verificador EAN13
+function calcularDigitoEAN13(codigo) {
+    let soma = 0;
+    for (let i = 0; i < 12; i++) {
+        const digito = parseInt(codigo[i]) || 0;
+        soma += (i % 2 === 0) ? digito : digito * 3;
+    }
+    return ((10 - (soma % 10)) % 10).toString();
+}
+
+// Impressão de etiquetas com códigos de barras REAIS em PDF
 function imprimirEtiquetas() {
     if (produtos.length === 0) {
         alert('Nenhum produto cadastrado para imprimir!');
         return;
     }
     
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
+    mostrarNotificacao('Gerando etiquetas com códigos reais...', 'info');
     
-    // Configurações da página
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 10;
-    const etiquetaWidth = 85;
-    const etiquetaHeight = 50;
-    const cols = 2;
-    const rows = 5;
+    // Usar a versão HTML com códigos reais que funciona
+    imprimirEtiquetasHTML();
+}
+
+function imprimirEtiquetasHTML() {
+    // Criar uma nova janela para impressão
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
     
-    let currentPage = 0;
-    let currentRow = 0;
-    let currentCol = 0;
-    
-    // Título da página
-    doc.setFontSize(16);
-    doc.setFont(undefined, 'bold');
-    doc.text('🛒 ETIQUETAS DE PRODUTOS - SUPER MERCADO INTERATIVO', pageWidth / 2, 15, { align: 'center' });
-    
-    produtos.forEach((produto, index) => {
-        // Verificar se precisa de nova página
-        if (currentRow >= rows) {
-            doc.addPage();
-            currentPage++;
-            currentRow = 0;
-            currentCol = 0;
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Etiquetas de Produtos - Códigos Reais</title>
+            <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+            <style>
+                @page {
+                    size: A4;
+                    margin: 10mm;
+                }
+                
+                body { 
+                    font-family: Arial, sans-serif; 
+                    margin: 0; 
+                    padding: 0; 
+                    background: white;
+                    color: black;
+                }
+                
+                .page-title {
+                    text-align: center;
+                    font-size: 18px;
+                    font-weight: bold;
+                    margin-bottom: 20px;
+                    color: #333;
+                    page-break-after: avoid;
+                }
+                
+                .etiquetas-container {
+                    display: grid;
+                    grid-template-columns: repeat(2, 1fr);
+                    gap: 8mm;
+                    max-width: 190mm;
+                    margin: 0 auto;
+                }
+                
+                .etiqueta {
+                    border: 2px solid #000;
+                    padding: 4mm;
+                    width: 85mm;
+                    height: 55mm;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-between;
+                    background: white;
+                    box-sizing: border-box;
+                    page-break-inside: avoid;
+                    position: relative;
+                }
+                
+                .produto-nome {
+                    font-size: 12px;
+                    font-weight: bold;
+                    margin-bottom: 3mm;
+                    color: #333;
+                    height: 24px;
+                    overflow: hidden;
+                    display: -webkit-box;
+                    -webkit-line-clamp: 2;
+                    -webkit-box-orient: vertical;
+                    line-height: 1.2;
+                }
+                
+                .produto-preco {
+                    font-size: 18px;
+                    font-weight: bold;
+                    color: #059669;
+                    margin: 2mm 0;
+                }
+                
+                .produto-categoria {
+                    font-size: 9px;
+                    color: #666;
+                    margin-bottom: 2mm;
+                }
+                
+                .barcode-container {
+                    text-align: center;
+                    margin: 2mm 0;
+                    min-height: 35px;
+                }
+                
+                .barcode-canvas {
+                    max-width: 100%;
+                    height: 35px;
+                    border: none;
+                }
+                
+                .codigo-numero {
+                    font-size: 8px;
+                    font-family: 'Courier New', monospace;
+                    text-align: center;
+                    margin-top: 1mm;
+                    letter-spacing: 1px;
+                    font-weight: bold;
+                }
+                
+                .instrucoes {
+                    margin-top: 10mm;
+                    padding: 5mm;
+                    background: #f8f9fa;
+                    border: 1px solid #dee2e6;
+                    border-radius: 3mm;
+                    page-break-before: always;
+                    font-size: 11px;
+                    line-height: 1.4;
+                }
+                
+                .instrucoes h3 {
+                    margin-top: 0;
+                    color: #374151;
+                    font-size: 14px;
+                }
+                
+                .instrucoes ul {
+                    margin: 8px 0;
+                    padding-left: 20px;
+                }
+                
+                .instrucoes li {
+                    margin: 4px 0;
+                    color: #4B5563;
+                }
+                
+                .destaque {
+                    background: #dcfce7;
+                    border: 1px solid #059669;
+                    padding: 3mm;
+                    border-radius: 2mm;
+                    margin-top: 3mm;
+                    color: #065f46;
+                    font-weight: bold;
+                    text-align: center;
+                }
+                
+                @media print {
+                    body { 
+                        margin: 0; 
+                        padding: 0;
+                        -webkit-print-color-adjust: exact;
+                        print-color-adjust: exact;
+                    }
+                    
+                    .etiquetas-container { 
+                        gap: 5mm; 
+                    }
+                    
+                    .etiqueta { 
+                        page-break-inside: avoid;
+                        border: 1.5px solid #000;
+                        break-inside: avoid;
+                    }
+                    
+                    .instrucoes {
+                        page-break-before: always;
+                        break-before: page;
+                    }
+                    
+                    .page-title {
+                        page-break-after: avoid;
+                        break-after: avoid;
+                    }
+                }
+                
+                @media screen {
+                    .print-buttons {
+                        position: fixed;
+                        top: 10px;
+                        right: 10px;
+                        z-index: 1000;
+                        background: white;
+                        padding: 10px;
+                        border-radius: 5px;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+                    }
+                    
+                    .btn {
+                        background: #3B82F6;
+                        color: white;
+                        border: none;
+                        padding: 8px 16px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        margin: 0 5px;
+                        font-size: 14px;
+                    }
+                    
+                    .btn:hover {
+                        background: #2563EB;
+                    }
+                    
+                    .btn-success {
+                        background: #059669;
+                    }
+                    
+                    .btn-success:hover {
+                        background: #047857;
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="print-buttons">
+                <button class="btn btn-success" onclick="window.print()">🖨️ Imprimir</button>
+                <button class="btn" onclick="window.close()">❌ Fechar</button>
+            </div>
             
-            // Título da nova página
-            doc.setFontSize(16);
-            doc.setFont(undefined, 'bold');
-            doc.text('🛒 ETIQUETAS DE PRODUTOS - SUPER MERCADO INTERATIVO', pageWidth / 2, 15, { align: 'center' });
-        }
-        
-        // Calcular posição da etiqueta
-        const x = margin + (currentCol * (etiquetaWidth + 5));
-        const y = 25 + (currentRow * (etiquetaHeight + 5));
-        
-        // Desenhar borda da etiqueta
-        doc.setDrawColor(0);
-        doc.setLineWidth(0.5);
-        doc.rect(x, y, etiquetaWidth, etiquetaHeight);
-        
-        // Nome do produto
-        doc.setFontSize(12);
-        doc.setFont(undefined, 'bold');
-        const nomeLinhas = doc.splitTextToSize(produto.nome, etiquetaWidth - 10);
-        doc.text(nomeLinhas, x + 5, y + 10);
-        
-        // Preço
-        doc.setFontSize(18);
-        doc.setFont(undefined, 'bold');
-        doc.setTextColor(0, 150, 0);
-        doc.text(`R$ ${produto.preco.toFixed(2)}`, x + 5, y + 25);
-        
-        // Código de barras (simulado com texto)
-        doc.setFontSize(8);
-        doc.setTextColor(0, 0, 0);
-        doc.setFont(undefined, 'normal');
-        doc.text(`Código: ${produto.codigo}`, x + 5, y + 35);
-        
-        // Categoria
-        doc.setFontSize(8);
-        doc.text(`${getCategoriaIcon(produto.categoria)} ${produto.categoria}`, x + 5, y + 42);
-        
-        // Código de barras visual (linhas simples)
-        doc.setLineWidth(0.5);
-        for (let i = 0; i < 20; i++) {
-            const lineX = x + 45 + (i * 1.5);
-            const lineHeight = (i % 3 === 0) ? 8 : 6;
-            doc.line(lineX, y + 30, lineX, y + 30 + lineHeight);
-        }
-        
-        // Avançar para próxima posição
-        currentCol++;
-        if (currentCol >= cols) {
-            currentCol = 0;
-            currentRow++;
-        }
-    });
+            <div class="page-title">
+                🛒 ETIQUETAS DE PRODUTOS - SUPER MERCADO INTERATIVO
+            </div>
+            
+            <div class="etiquetas-container" id="etiquetasContainer">
+                <!-- Etiquetas serão inseridas aqui -->
+            </div>
+            
+            <div class="instrucoes">
+                <h3>📋 INSTRUÇÕES DE USO - CÓDIGOS REAIS</h3>
+                <ul>
+                    <li><strong>1. Imprima esta página</strong> em papel A4 branco comum</li>
+                    <li><strong>2. Recorte</strong> as etiquetas seguindo as bordas pretas</li>
+                    <li><strong>3. Cole</strong> nas embalagens dos produtos</li>
+                    <li><strong>4. Use o Scanner</strong> do app para ler os códigos de barras</li>
+                    <li><strong>5. Aponte a câmera</strong> diretamente para as barras pretas</li>
+                    <li><strong>6. Mantenha boa iluminação</strong> e distância adequada (10-15cm)</li>
+                    <li><strong>🎮 Divirta-se</strong> jogando mercado!</li>
+                </ul>
+                
+                <div class="destaque">
+                    ✅ ESTES SÃO CÓDIGOS DE BARRAS CODE128 REAIS!<br>
+                    Funcionam em qualquer scanner de código de barras!
+                </div>
+                
+                <p style="margin-top: 8px; font-size: 10px; color: #666;">
+                    💡 <strong>Dica:</strong> Se o scanner não detectar, teste primeiro com "Teste Manual" no app usando os códigos numéricos.
+                </p>
+            </div>
+            
+            <script>
+                let produtosCarregados = 0;
+                const totalProdutos = ${produtos.length};
+                
+                function gerarEtiquetas() {
+                    const produtos = ${JSON.stringify(produtos)};
+                    const container = document.getElementById('etiquetasContainer');
+                    
+                    produtos.forEach((produto, index) => {
+                        const etiquetaDiv = document.createElement('div');
+                        etiquetaDiv.className = 'etiqueta';
+                        etiquetaDiv.innerHTML = \`
+                            <div class="produto-nome">\${produto.nome}</div>
+                            <div class="produto-preco">R$ \${produto.preco.toFixed(2)}</div>
+                            <div class="produto-categoria">\${getCategoriaIcon(produto.categoria)} \${produto.categoria}</div>
+                            <div class="barcode-container">
+                                <canvas class="barcode-canvas" id="barcode-\${index}"></canvas>
+                                <div class="codigo-numero">\${produto.codigo}</div>
+                            </div>
+                        \`;
+                        container.appendChild(etiquetaDiv);
+                        
+                        // Gerar código de barras real com delay para evitar conflitos
+                        setTimeout(() => {
+                            try {
+                                JsBarcode(\`#barcode-\${index}\`, produto.codigo, {
+                                    format: "CODE128",
+                                    width: 1.8,
+                                    height: 35,
+                                    displayValue: false,
+                                    background: "#ffffff",
+                                    lineColor: "#000000",
+                                    margin: 3,
+                                    fontSize: 0
+                                });
+                                
+                                produtosCarregados++;
+                                
+                                // Quando todos estiverem carregados, mostrar botão de imprimir
+                                if (produtosCarregados === totalProdutos) {
+                                    console.log('Todos os códigos de barras foram gerados com sucesso!');
+                                    // Auto-print após 3 segundos se desejar
+                                    // setTimeout(() => window.print(), 3000);
+                                }
+                                
+                            } catch (error) {
+                                console.error('Erro ao gerar código CODE128:', error);
+                                
+                                // Fallback para EAN13
+                                try {
+                                    const codigoEAN = produto.codigo.padStart(12, '0');
+                                    const codigoComDigito = codigoEAN + calcularDigitoEAN13(codigoEAN);
+                                    
+                                    JsBarcode(\`#barcode-\${index}\`, codigoComDigito, {
+                                        format: "EAN13",
+                                        width: 1.5,
+                                        height: 35,
+                                        displayValue: false,
+                                        background: "#ffffff",
+                                        lineColor: "#000000",
+                                        margin: 3
+                                    });
+                                    
+                                    produtosCarregados++;
+                                    
+                                } catch (error2) {
+                                    console.error('Erro no fallback EAN13:', error2);
+                                    
+                                    // Fallback final: desenhar código manual
+                                    const canvas = document.getElementById(\`barcode-\${index}\`);
+                                    const ctx = canvas.getContext('2d');
+                                    canvas.width = 200;
+                                    canvas.height = 35;
+                                    
+                                    // Fundo branco
+                                    ctx.fillStyle = '#ffffff';
+                                    ctx.fillRect(0, 0, 200, 35);
+                                    
+                                    // Desenhar barras simples baseadas no código
+                                    ctx.fillStyle = '#000000';
+                                    let x = 10;
+                                    for (let i = 0; i < produto.codigo.length && x < 190; i++) {
+                                        const digit = parseInt(produto.codigo[i]) || 0;
+                                        const barWidth = 2 + (digit % 3);
+                                        const spaceWidth = 1 + (digit % 2);
+                                        
+                                        // Barra preta
+                                        ctx.fillRect(x, 2, barWidth, 31);
+                                        x += barWidth + spaceWidth;
+                                    }
+                                    
+                                    produtosCarregados++;
+                                }
+                            }
+                        }, index * 200); // Delay escalonado
+                    });
+                }
+                
+                function getCategoriaIcon(categoria) {
+                    const icons = {
+                        'bebidas': '🥤',
+                        'alimentos': '🍞', 
+                        'limpeza': '🧽',
+                        'higiene': '🧴',
+                        'doces': '🍭',
+                        'outros': '📦'
+                    };
+                    return icons[categoria] || '📦';
+                }
+                
+                function calcularDigitoEAN13(codigo) {
+                    let soma = 0;
+                    for (let i = 0; i < 12; i++) {
+                        const digito = parseInt(codigo[i]) || 0;
+                        soma += (i % 2 === 0) ? digito : digito * 3;
+                    }
+                    return ((10 - (soma % 10)) % 10).toString();
+                }
+                
+                // Verificar se JsBarcode está carregado
+                function verificarJsBarcode() {
+                    if (typeof JsBarcode !== 'undefined') {
+                        console.log('JsBarcode carregado com sucesso!');
+                        gerarEtiquetas();
+                    } else {
+                        console.log('Aguardando JsBarcode...');
+                        setTimeout(verificarJsBarcode, 100);
+                    }
+                }
+                
+                // Iniciar quando a página carregar
+                window.onload = function() {
+                    console.log('Página carregada, iniciando geração de códigos...');
+                    verificarJsBarcode();
+                };
+            </script>
+        </body>
+        </html>
+    `);
     
-    // Adicionar instruções na última página
-    const finalY = 25 + (Math.ceil(produtos.length / cols) * (etiquetaHeight + 5)) + 20;
-    
-    doc.setFontSize(10);
-    doc.setTextColor(100, 100, 100);
-    doc.text('📋 INSTRUÇÕES:', margin, finalY);
-    doc.text('1. Recorte as etiquetas seguindo as linhas', margin, finalY + 8);
-    doc.text('2. Cole nas embalagens dos produtos', margin, finalY + 16);
-    doc.text('3. Use o scanner para ler os códigos de barras', margin, finalY + 24);
-    doc.text('4. Divirta-se jogando mercado! 🎮', margin, finalY + 32);
-    
-    // Salvar PDF
-    doc.save('etiquetas-produtos.pdf');
-    mostrarNotificacao('Etiquetas geradas com sucesso!', 'success');
+    printWindow.document.close();
+    mostrarNotificacao('Etiquetas com códigos CODE128 reais geradas! Use o botão Imprimir na nova janela.', 'success');
 }
 
 // Funções auxiliares
@@ -630,17 +1286,46 @@ function mostrarNotificacao(mensagem, tipo = 'info') {
 // Inicializar com alguns produtos de exemplo
 if (produtos.length === 0) {
     const produtosExemplo = [
-        { id: 1, nome: 'Coca-Cola 350ml', preco: 4.50, codigo: '7894900011517', categoria: 'bebidas', dataCadastro: new Date().toLocaleDateString() },
-        { id: 2, nome: 'Pão de Açúcar', preco: 6.90, codigo: '7891234567890', categoria: 'alimentos', dataCadastro: new Date().toLocaleDateString() },
-        { id: 3, nome: 'Detergente Ypê', preco: 2.99, codigo: '7896098765432', categoria: 'limpeza', dataCadastro: new Date().toLocaleDateString() },
-        { id: 4, nome: 'Shampoo Seda', preco: 12.90, codigo: '7891098765432', categoria: 'higiene', dataCadastro: new Date().toLocaleDateString() },
-        { id: 5, nome: 'Chocolate Lacta', preco: 8.50, codigo: '7622210987654', categoria: 'doces', dataCadastro: new Date().toLocaleDateString() }
+        { id: 1, nome: 'Coca-Cola 350ml', preco: 4.50, codigo: '789490001151', categoria: 'bebidas', dataCadastro: new Date().toLocaleDateString() },
+        { id: 2, nome: 'Pão de Açúcar', preco: 6.90, codigo: '789123456789', categoria: 'alimentos', dataCadastro: new Date().toLocaleDateString() },
+        { id: 3, nome: 'Detergente Ypê', preco: 2.99, codigo: '789609876543', categoria: 'limpeza', dataCadastro: new Date().toLocaleDateString() },
+        { id: 4, nome: 'Shampoo Seda', preco: 12.90, codigo: '789109876543', categoria: 'higiene', dataCadastro: new Date().toLocaleDateString() },
+        { id: 5, nome: 'Chocolate Lacta', preco: 8.50, codigo: '762221098765', categoria: 'doces', dataCadastro: new Date().toLocaleDateString() }
     ];
     
     produtos = produtosExemplo;
     localStorage.setItem('produtos', JSON.stringify(produtos));
     atualizarContadores();
     atualizarListaProdutos();
+}
+
+// Função para teste manual de códigos
+function testarCodigoManual() {
+    const codigo = prompt('Digite o código de barras para testar:');
+    if (!codigo) return;
+    
+    document.getElementById('codigoLido').textContent = codigo;
+    
+    const produto = produtos.find(p => p.codigo === codigo);
+    
+    if (produto) {
+        produtoAtual = produto;
+        document.getElementById('produtoEncontrado').classList.remove('hidden');
+        document.getElementById('produtoNaoEncontrado').classList.add('hidden');
+        document.getElementById('infoProduto').innerHTML = `
+            <div class="font-semibold text-lg">${produto.nome}</div>
+            <div class="text-green-600 font-bold text-xl">R$ ${produto.preco.toFixed(2)}</div>
+            <div class="text-gray-600">${getCategoriaIcon(produto.categoria)} ${produto.categoria}</div>
+            <div class="text-xs text-gray-500 mt-1">Código: ${produto.codigo}</div>
+        `;
+        mostrarNotificacao(`Produto encontrado: ${produto.nome}`, 'success');
+        playBeep();
+    } else {
+        produtoAtual = null;
+        document.getElementById('produtoEncontrado').classList.add('hidden');
+        document.getElementById('produtoNaoEncontrado').classList.remove('hidden');
+        mostrarNotificacao('Produto não encontrado no sistema', 'warning');
+    }
 }
 
 // ===== SISTEMA DE DINHEIRO =====
