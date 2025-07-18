@@ -87,6 +87,12 @@ document.addEventListener('DOMContentLoaded', function() {
         filtroCategoria.addEventListener('change', filtrarProdutos);
     }
     document.getElementById('formCartao').addEventListener('submit', criarCartao);
+
+    // Event listeners para os botões do scanner
+    document.getElementById('btn-parar-scanner').addEventListener('click', pararScanner);
+    document.getElementById('btn-testar-camera').addEventListener('click', testarCamera);
+    document.getElementById('btn-reiniciar-camera').addEventListener('click', reiniciarCamera);
+    document.getElementById('btn-teste-manual').addEventListener('click', testarCodigoManual);
     
     // Auto-save a cada 30 segundos
     setInterval(salvarTodosDados, 30000);
@@ -192,328 +198,421 @@ function gerarCodigoAleatorio() {
 }
 
 // Scanner de código de barras - versão melhorada
-function iniciarScanner() {
-    if (scannerAtivo) return;
-    
-    // Verificar suporte à câmera
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        alert('❌ Câmera não suportada neste navegador!\n\nTente usar:\n• Chrome\n• Firefox\n• Edge\n• Safari');
-        return;
+function pararScanner() {
+    if (scannerAtivo) {
+        console.log("Stopping Quagga scanner...");
+        Quagga.stop();
+        scannerAtivo = false;
     }
-    
-    // Primeiro, testar se conseguimos acessar a câmera
-    navigator.mediaDevices.getUserMedia({ 
-        video: { 
-            facingMode: "environment",
-            width: { ideal: 640 },
-            height: { ideal: 480 }
-        } 
-    })
-    .then(stream => {
-        // Se chegou aqui, a câmera funciona
-        stream.getTracks().forEach(track => track.stop()); // Parar o teste
-        
-        // Agora iniciar o Quagga
-        iniciarQuaggaScanner();
-    })
-    .catch(err => {
-        console.error('Erro de acesso à câmera:', err);
-        
-        let mensagem = '❌ Não foi possível acessar a câmera!\n\n';
-        
-        if (err.name === 'NotAllowedError') {
-            mensagem += 'Permissão negada:\n• Clique no ícone de câmera na barra de endereço\n• Permita o acesso\n• Recarregue a página';
-        } else if (err.name === 'NotFoundError') {
-            mensagem += 'Câmera não encontrada:\n• Verifique se há uma câmera conectada\n• Feche outros apps que usam a câmera';
-        } else {
-            mensagem += 'Erro: ' + err.message + '\n\nTente:\n• Recarregar a página\n• Usar outro navegador\n• Verificar se está em HTTPS';
-        }
-        
-        alert(mensagem);
-    });
+
+    const video = document.getElementById('video');
+    if (video && video.srcObject) {
+        console.log("Stopping media stream tracks.");
+        video.srcObject.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+    }
+
+    const overlay = document.getElementById('scanner-overlay');
+    if(overlay) overlay.style.display = 'flex';
+    if(video) video.style.display = 'none';
+
+    console.log("Scanner and camera stopped.");
 }
 
-function iniciarQuaggaScanner() {
-    document.getElementById('scanner-overlay').style.display = 'none';
-    scannerAtivo = true;
-    
-    // Preparar o container
+async function testarCamera() {
+    console.log("🧪 --- Running Camera Test ---");
+    pararScanner();
+
     const video = document.getElementById('video');
-    video.innerHTML = '';
-    video.style.cssText = `
-        background: #000000;
-        min-height: 300px;
-        position: relative;
-        border-radius: 8px;
-        overflow: hidden;
-    `;
+    const overlay = document.getElementById('scanner-overlay');
+
+    try {
+        if (overlay) overlay.style.display = 'none';
+        if (video) {
+            video.style.display = 'block';
+            video.style.visibility = 'visible';
+            video.removeAttribute('src');
+            video.srcObject = null;
+            video.setAttribute('autoplay', '');
+            video.setAttribute('playsinline', '');
+            video.setAttribute('muted', '');
+        }
+
+        console.log("📹 Solicitando acesso à câmera para teste...");
+        
+        const constraints = {
+            video: {
+                facingMode: "environment",
+                width: { min: 320, ideal: 640, max: 1280 },
+                height: { min: 240, ideal: 480, max: 720 }
+            }
+        };
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        console.log('✅ Stream da câmera recebido para teste.');
+        
+        if (video) {
+            video.srcObject = stream;
+            
+            // Aguardar o vídeo carregar
+            await new Promise((resolve, reject) => {
+                video.onloadedmetadata = () => {
+                    console.log(`📐 Dimensões do vídeo: ${video.videoWidth}x${video.videoHeight}`);
+                    resolve();
+                };
+                video.onerror = reject;
+                
+                // Timeout de 5 segundos
+                setTimeout(() => reject(new Error('Timeout ao carregar vídeo')), 5000);
+            });
+            
+            await video.play();
+            mostrarNotificacao('✅ Teste da câmera: SUCESSO! Câmera funcionando corretamente.', 'success');
+            
+            // Parar o teste após 5 segundos
+            setTimeout(() => {
+                console.log("⏰ Finalizando teste da câmera...");
+                stream.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+                if (overlay) overlay.style.display = 'flex';
+                if (video) video.style.display = 'none';
+                mostrarNotificacao('Teste da câmera finalizado. Agora você pode tentar o scanner.', 'info');
+            }, 5000);
+            
+        } else {
+            throw new Error("Elemento de vídeo não encontrado.");
+        }
+        
+    } catch (error) {
+        console.error('❌ Erro no teste da câmera:', error);
+        
+        let mensagem = 'Teste da câmera falhou: ';
+        switch (error.name) {
+            case 'NotAllowedError':
+                mensagem += 'Permissão da câmera foi negada. Clique no ícone de câmera na barra de endereço e permita o acesso.';
+                break;
+            case 'NotFoundError':
+                mensagem += 'Nenhuma câmera foi encontrada no dispositivo.';
+                break;
+            case 'NotSupportedError':
+                mensagem += 'Câmera não suportada neste navegador. Tente Chrome, Firefox ou Safari.';
+                break;
+            case 'OverconstrainedError':
+                mensagem += 'Configurações da câmera não suportadas. Tentando configuração mais simples...';
+                // Tentar configuração mais simples
+                setTimeout(() => testarCameraSimples(), 1000);
+                return;
+            default:
+                mensagem += error.message;
+        }
+        
+        mostrarNotificacao(mensagem, 'error');
+        
+        if (overlay) {
+            overlay.style.display = 'flex';
+            overlay.innerHTML = `
+                <div class="text-center text-white">
+                    <i class="fas fa-exclamation-triangle text-4xl mb-4 text-red-400"></i>
+                    <p class="mb-4">❌ Teste da Câmera Falhou</p>
+                    <p class="text-sm mb-4">${mensagem}</p>
+                    <div class="space-x-2">
+                        <button onclick="testarCameraSimples()" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded">
+                            <i class="fas fa-redo mr-2"></i>Tentar Configuração Simples
+                        </button>
+                        <button onclick="testarCodigoManual()" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded">
+                            <i class="fas fa-keyboard mr-2"></i>Usar Modo Manual
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+        if (video) video.style.display = 'none';
+    }
+}
+
+// Teste com configuração mais simples
+async function testarCameraSimples() {
+    console.log("🔧 Testando câmera com configuração simples...");
     
-    // Loading
-    const loadingDiv = document.createElement('div');
-    loadingDiv.id = 'camera-loading';
-    loadingDiv.style.cssText = `
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        color: white;
-        text-align: center;
-        z-index: 10;
-        background: rgba(0,0,0,0.8);
-        padding: 20px;
-        border-radius: 10px;
-        font-size: 16px;
-    `;
-    loadingDiv.innerHTML = '<i class="fas fa-spinner fa-spin text-3xl mb-3"></i><br>Iniciando scanner...';
+    const video = document.getElementById('video');
+    const overlay = document.getElementById('scanner-overlay');
+    
+    try {
+        const constraints = {
+            video: true // Configuração mais básica possível
+        };
+        
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        if (video) {
+            video.srcObject = stream;
+            video.style.display = 'block';
+            if (overlay) overlay.style.display = 'none';
+            
+            await video.play();
+            mostrarNotificacao('✅ Câmera funcionando com configuração simples!', 'success');
+            
+            setTimeout(() => {
+                stream.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+                if (overlay) overlay.style.display = 'flex';
+                video.style.display = 'none';
+            }, 5000);
+        }
+        
+    } catch (error) {
+        console.error('❌ Teste simples também falhou:', error);
+        mostrarNotificacao('Câmera não disponível. Use o modo manual para inserir códigos.', 'error');
+    }
+}
+
+async function iniciarScanner() {
+    console.log("🎥 --- Initializing Scanner ---");
+    pararScanner();
+
+    const video = document.getElementById('video');
+    const overlay = document.getElementById('scanner-overlay');
+    const container = document.getElementById('scanner-container');
+
+    try {
+        // Primeiro, verificar se a câmera está disponível
+        console.log("🔍 Verificando permissões da câmera...");
+        
+        // Verificar permissões primeiro
+        const permissions = await navigator.permissions.query({ name: 'camera' });
+        console.log("📋 Status da permissão:", permissions.state);
+        
+        if (permissions.state === 'denied') {
+            throw new Error('Permissão da câmera foi negada. Permita o acesso à câmera nas configurações do navegador.');
+        }
+
+        // Testar acesso à câmera primeiro
+        console.log("📹 Testando acesso à câmera...");
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: "environment",
+                width: { min: 320, ideal: 640, max: 1280 },
+                height: { min: 240, ideal: 480, max: 720 }
+            }
+        });
+
+        // Se chegou até aqui, a câmera está funcionando
+        console.log("✅ Câmera acessível, parando stream de teste...");
+        stream.getTracks().forEach(track => track.stop());
+
+        // Agora configurar o Quagga
+        if (overlay) overlay.style.display = 'none';
+        if (video) {
+            video.style.display = 'none'; // Esconder o elemento video original
+        }
+
+        console.log("🔧 Configurando Quagga...");
+        
+        Quagga.init({
+            inputStream: {
+                name: "Live",
+                type: "LiveStream",
+                target: container, // Usar o container diretamente
+                constraints: {
+                    width: { min: 320, ideal: 640, max: 1280 },
+                    height: { min: 240, ideal: 480, max: 720 },
+                    facingMode: "environment",
+                    aspectRatio: { ideal: 4/3 }
+                },
+                area: { // Área de escaneamento
+                    top: "10%",
+                    right: "10%", 
+                    left: "10%",
+                    bottom: "10%"
+                }
+            },
+            decoder: {
+                readers: [
+                    "code_128_reader", 
+                    "ean_reader", 
+                    "ean_8_reader",
+                    "code_39_reader",
+                    "code_39_vin_reader"
+                ]
+            },
+            locate: true,
+            frequency: 8, // Reduzir frequência para melhor performance
+            numOfWorkers: 2, // Fixar número de workers
+            halfSample: false, // Melhor qualidade
+            debug: false // Desabilitar debug para evitar conflitos
+        }, function (err) {
+            if (err) {
+                console.error("❌ Erro na inicialização do Quagga:", err);
+                mostrarNotificacao(`Erro ao iniciar scanner: ${err.message}`, 'error');
+                
+                // Fallback: tentar configuração mais simples
+                console.log("🔄 Tentando configuração de fallback...");
+                iniciarScannerFallback();
+                return;
+            }
+            
+            console.log("✅ Quagga inicializado com sucesso!");
+            Quagga.start();
+            scannerAtivo = true;
+            
+            // Verificar se o vídeo está funcionando após 2 segundos
+            setTimeout(() => {
+                verificarVideoFuncionando();
+            }, 2000);
+            
+            mostrarNotificacao('Scanner iniciado com sucesso!', 'success');
+        });
+
+        // Configurar eventos do Quagga
+        Quagga.onDetected(function (data) {
+            const codigo = data.codeResult.code;
+            if (!codigo) return;
+            
+            console.log("📊 Código detectado:", codigo);
+            document.getElementById('codigoLido').textContent = codigo;
+            
+            const produto = produtos.find(p => p.codigo === codigo);
+            if (produto) {
+                produtoAtual = produto;
+                document.getElementById('produtoEncontrado').classList.remove('hidden');
+                const produtoNaoEncontrado = document.getElementById('produtoNaoEncontrado');
+                if (produtoNaoEncontrado) {
+                    produtoNaoEncontrado.classList.add('hidden');
+                }
+                document.getElementById('infoProduto').innerHTML = `
+                    <div class="font-semibold text-lg">${produto.nome}</div>
+                    <div class="text-green-600 font-bold text-xl">R$ ${produto.preco.toFixed(2)}</div>
+                    <div class="text-gray-600">${getCategoriaIcon(produto.categoria)} ${produto.categoria}</div>
+                    <div class="text-xs text-gray-500 mt-1">Código: ${produto.codigo}</div>
+                `;
+                mostrarNotificacao(`Produto encontrado: ${produto.nome}`, 'success');
+            } else {
+                produtoAtual = null;
+                document.getElementById('produtoEncontrado').classList.add('hidden');
+                const produtoNaoEncontrado = document.getElementById('produtoNaoEncontrado');
+                if (produtoNaoEncontrado) {
+                    produtoNaoEncontrado.classList.remove('hidden');
+                }
+                mostrarNotificacao('Produto não encontrado no sistema', 'warning');
+            }
+            playBeep();
+        });
+
+        Quagga.onProcessed(function(result) {
+            var drawingCtx = Quagga.canvas.ctx.overlay,
+                drawingCanvas = Quagga.canvas.dom.overlay;
+
+            if (result) {
+                // Configurar canvas com willReadFrequently
+                if (drawingCtx && !drawingCtx._configured) {
+                    const canvas = drawingCanvas;
+                    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                    drawingCtx._configured = true;
+                    console.log("✅ Canvas configurado com willReadFrequently");
+                }
+
+                if (result.boxes) {
+                    drawingCtx.clearRect(0, 0, parseInt(drawingCanvas.getAttribute("width")), parseInt(drawingCanvas.getAttribute("height")));
+                    result.boxes.filter(function (box) {
+                        return box !== result.box;
+                    }).forEach(function (box) {
+                        Quagga.ImageDebug.drawPath(box, {x: 0, y: 1}, drawingCtx, {color: "green", lineWidth: 2});
+                    });
+                }
+                if (result.box) {
+                    Quagga.ImageDebug.drawPath(result.box, {x: 0, y: 1}, drawingCtx, {color: "#00F", lineWidth: 2});
+                }
+                if (result.codeResult && result.codeResult.code) {
+                    Quagga.ImageDebug.drawPath(result.line, {x: 'x', y: 'y'}, drawingCtx, {color: 'red', lineWidth: 3});
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error("❌ Erro ao acessar câmera:", error);
+        
+        let mensagem = 'Erro ao acessar a câmera: ';
+        switch (error.name) {
+            case 'NotAllowedError':
+                mensagem += 'Permissão negada. Permita o acesso à câmera.';
+                break;
+            case 'NotFoundError':
+                mensagem += 'Câmera não encontrada.';
+                break;
+            case 'NotSupportedError':
+                mensagem += 'Câmera não suportada neste navegador.';
+                break;
+            default:
+                mensagem += error.message;
+        }
+        
+        mostrarNotificacao(mensagem, 'error');
+        
+        // Mostrar interface de fallback
+        if (overlay) {
+            overlay.style.display = 'flex';
+            overlay.innerHTML = `
+                <div class="text-center text-white">
+                    <i class="fas fa-exclamation-triangle text-4xl mb-4"></i>
+                    <p class="mb-4">Câmera indisponível</p>
+                    <button onclick="testarCamera()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded mr-2">
+                        <i class="fas fa-video mr-2"></i>Testar Câmera
+                    </button>
+                    <button onclick="testarCodigoManual()" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded">
+                        <i class="fas fa-keyboard mr-2"></i>Teste Manual
+                    </button>
+                </div>
+            `;
+        }
+    }
+}
+
+// Função de fallback com configuração mais simples
+function iniciarScannerFallback() {
+    console.log("🔄 Iniciando scanner em modo fallback...");
     
     const container = document.getElementById('scanner-container');
-    container.appendChild(loadingDiv);
     
-    // Configuração melhorada do Quagga para evitar tela preta
     Quagga.init({
         inputStream: {
             name: "Live",
             type: "LiveStream",
-            target: video,
+            target: container,
             constraints: {
-                width: { min: 320, ideal: 640, max: 800 },
-                height: { min: 240, ideal: 480, max: 600 },
-                facingMode: "environment",
-                aspectRatio: { ideal: 4/3 }
-            },
-            area: { // Define área de escaneamento
-                top: "10%",
-                right: "10%",
-                left: "10%",
-                bottom: "10%"
+                width: { ideal: 480 },
+                height: { ideal: 360 },
+                facingMode: "environment"
             }
         },
-        locator: {
-            patchSize: "medium",
-            halfSample: false // Não reduzir qualidade
-        },
-        numOfWorkers: 2, // Fixo em 2 para estabilidade
-        frequency: 8, // Reduzir frequência para melhor performance
         decoder: {
-            readers: [
-                "code_128_reader",
-                "ean_reader",
-                "ean_8_reader"
-            ]
+            readers: ["code_128_reader", "ean_reader"]
         },
-        locate: true,
-        debug: false // Desabilitar debug para evitar conflitos
-    }, function(err) {
-        // Remover loading
-        const loading = document.getElementById('camera-loading');
-        if (loading) loading.remove();
-        
+        locate: false, // Simplificar
+        frequency: 5,
+        numOfWorkers: 1
+    }, function (err) {
         if (err) {
-            console.error('Erro do Quagga:', err);
-            scannerAtivo = false;
-            document.getElementById('scanner-overlay').style.display = 'flex';
-            
-            // Tentar novamente com configurações mais básicas
-            setTimeout(() => {
-                tentarConfiguracaoBasica();
-            }, 1000);
-            
+            console.error("❌ Fallback também falhou:", err);
+            mostrarNotificacao('Scanner não disponível. Use o teste manual.', 'error');
             return;
         }
         
-        console.log('✅ Quagga iniciado com sucesso');
-        mostrarNotificacao('✅ Scanner ativo! Aponte para um código de barras', 'success');
-        
-        // Iniciar detecção
+        console.log("✅ Scanner fallback iniciado!");
         Quagga.start();
-        
-        // Aguardar e configurar vídeo adequadamente
-        setTimeout(() => {
-            const videoEl = document.querySelector('#video video');
-            const canvasEl = document.querySelector('#video canvas');
-            
-            if (videoEl) {
-                console.log('🎥 Configurando elemento de vídeo...');
-                
-                // Forçar estilos corretos no vídeo
-                videoEl.style.cssText = `
-                    width: 100% !important;
-                    height: 300px !important;
-                    object-fit: cover !important;
-                    background: #000 !important;
-                    display: block !important;
-                    border-radius: 8px;
-                `;
-                
-                // Verificar se o vídeo tem conteúdo
-                const checkVideo = () => {
-                    if (videoEl.videoWidth > 0 && videoEl.videoHeight > 0) {
-                        console.log(`✅ Vídeo funcionando: ${videoEl.videoWidth}x${videoEl.videoHeight}`);
-                        
-                        // Configurar canvas se existir
-                        if (canvasEl) {
-                            canvasEl.style.cssText = `
-                                position: absolute !important;
-                                top: 0 !important;
-                                left: 0 !important;
-                                width: 100% !important;
-                                height: 100% !important;
-                                pointer-events: none !important;
-                                z-index: 2 !important;
-                            `;
-                        }
-                        
-                        // Garantir reprodução
-                        videoEl.play().catch(e => {
-                            console.warn('Aviso ao reproduzir vídeo:', e);
-                        });
-                        
-                    } else {
-                        console.warn('⚠️ Vídeo sem dimensões válidas');
-                        
-                        // Tentar reativar
-                        setTimeout(() => {
-                            if (videoEl.srcObject) {
-                                videoEl.load();
-                                videoEl.play().catch(e => console.log('Erro ao recarregar:', e));
-                            }
-                        }, 500);
-                    }
-                };
-                
-                // Verificar quando o vídeo carregar metadados
-                if (videoEl.readyState >= 1) {
-                    checkVideo();
-                } else {
-                    videoEl.addEventListener('loadedmetadata', checkVideo, { once: true });
-                }
-                
-                // Fallback após 3 segundos
-                setTimeout(() => {
-                    if (videoEl.videoWidth === 0) {
-                        console.warn('⚠️ Vídeo ainda sem dimensões após 3s, tentando fallback');
-                        mostrarNotificacao('⚠️ Problemas com câmera. Tente "Testar Câmera"', 'warning');
-                    }
-                }, 3000);
-                
-            } else {
-                console.error('❌ Elemento de vídeo não encontrado');
-                mostrarNotificacao('❌ Erro no vídeo. Tente "Testar Câmera"', 'error');
-            }
-        }, 1500);
-    });
-    
-    // Listener para códigos detectados
-    Quagga.onDetected(function(data) {
-        const codigo = data.codeResult.code;
-        console.log('Código detectado:', codigo);
-        
-        // Validar se o código não está vazio
-        if (!codigo || codigo.length < 3) {
-            return;
-        }
-        
-        document.getElementById('codigoLido').textContent = codigo;
-        
-        // Buscar produto pelo código
-        const produto = produtos.find(p => p.codigo === codigo);
-        
-        if (produto) {
-            produtoAtual = produto;
-            document.getElementById('produtoEncontrado').classList.remove('hidden');
-            document.getElementById('produtoNaoEncontrado').classList.add('hidden');
-            document.getElementById('infoProduto').innerHTML = `
-                <div class="font-semibold text-lg">${produto.nome}</div>
-                <div class="text-green-600 font-bold text-xl">R$ ${produto.preco.toFixed(2)}</div>
-                <div class="text-gray-600">${getCategoriaIcon(produto.categoria)} ${produto.categoria}</div>
-                <div class="text-xs text-gray-500 mt-1">Código: ${produto.codigo}</div>
-            `;
-            mostrarNotificacao(`Produto encontrado: ${produto.nome}`, 'success');
-        } else {
-            produtoAtual = null;
-            document.getElementById('produtoEncontrado').classList.add('hidden');
-            document.getElementById('produtoNaoEncontrado').classList.remove('hidden');
-            mostrarNotificacao('Produto não encontrado no sistema', 'warning');
-        }
-        
-        // Som de beep
-        playBeep();
-        
-        // Vibração no mobile (se disponível)
-        if (navigator.vibrate) {
-            navigator.vibrate([100, 50, 100]);
-        }
-    });
-    
-    // Listener para processar frames
-    Quagga.onProcessed(function(result) {
-        var drawingCtx = Quagga.canvas.ctx.overlay,
-            drawingCanvas = Quagga.canvas.dom.overlay;
-
-        if (result) {
-            if (result.boxes) {
-                drawingCtx.clearRect(0, 0, parseInt(drawingCanvas.getAttribute("width")), parseInt(drawingCanvas.getAttribute("height")));
-                result.boxes.filter(function (box) {
-                    return box !== result.box;
-                }).forEach(function (box) {
-                    Quagga.ImageDebug.drawPath(box, {x: 0, y: 1}, drawingCtx, {color: "green", lineWidth: 2});
-                });
-            }
-
-            if (result.box) {
-                Quagga.ImageDebug.drawPath(result.box, {x: 0, y: 1}, drawingCtx, {color: "#00F", lineWidth: 2});
-            }
-
-            if (result.codeResult && result.codeResult.code) {
-                Quagga.ImageDebug.drawPath(result.line, {x: 'x', y: 'y'}, drawingCtx, {color: 'red', lineWidth: 3});
-            }
-        }
+        scannerAtivo = true;
+        mostrarNotificacao('Scanner iniciado em modo básico', 'warning');
     });
 }
 
-// Função de fallback para configuração básica da câmera
-function tentarConfiguracaoBasica() {
-    console.log('🔄 Tentando configuração básica da câmera...');
-    
-    const video = document.getElementById('video');
-    
-    // Limpar completamente
-    video.innerHTML = '';
-    video.style.cssText = `
-        background: #000000;
-        min-height: 300px;
-        position: relative;
-        border-radius: 8px;
-        overflow: hidden;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    `;
-    
-    // Mostrar loading
-    video.innerHTML = '<div style="color: white; text-align: center;"><i class="fas fa-spinner fa-spin text-2xl mb-2"></i><br>Conectando câmera...</div>';
-    
-    // Tentar acesso direto à câmera com configurações mais simples
-    navigator.mediaDevices.getUserMedia({
-        video: {
-            facingMode: "environment",
-            width: { ideal: 480 },
-            height: { ideal: 360 }
-        }
-    })
-    .then(stream => {
-        // Limpar loading
-        video.innerHTML = '';
-        video.style.display = 'block';
+// Verificar se o vídeo está funcionando
+function verificarVideoFuncionando() {
+    const videoEl = document.querySelector('#scanner-container video');
+    if (videoEl) {
+        console.log("🔍 Verificando vídeo...");
         
-        // Criar elemento video diretamente
-        const videoElement = document.createElement('video');
-        videoElement.autoplay = true;
-        videoElement.playsInline = true;
-        videoElement.muted = true;
-        videoElement.controls = false;
-        
-        videoElement.style.cssText = `
+        // Aplicar estilos para garantir visibilidade
+        videoEl.style.cssText = `
             width: 100% !important;
             height: 300px !important;
             object-fit: cover !important;
@@ -522,277 +621,20 @@ function tentarConfiguracaoBasica() {
             border-radius: 8px;
         `;
         
-        videoElement.srcObject = stream;
-        video.appendChild(videoElement);
-        
-        // Aguardar carregamento dos metadados
-        videoElement.onloadedmetadata = () => {
-            console.log(`✅ Configuração básica funcionou! ${videoElement.videoWidth}x${videoElement.videoHeight}`);
-            mostrarNotificacao('✅ Câmera funcionando! Use "Teste Manual" para inserir códigos', 'success');
-            
-            // Garantir que está reproduzindo
-            videoElement.play().catch(e => {
-                console.warn('Aviso ao reproduzir:', e);
-            });
-        };
-        
-        videoElement.onerror = (e) => {
-            console.error('❌ Erro no vídeo básico:', e);
-            mostrarNotificacao('❌ Erro na câmera. Tente recarregar a página.', 'error');
-        };
-        
-        // Verificar após 2 segundos se está funcionando
-        setTimeout(() => {
-            if (videoElement.videoWidth === 0 || videoElement.videoHeight === 0) {
-                console.warn('⚠️ Vídeo básico sem dimensões');
-                
-                // Tentar forçar reprodução
-                videoElement.load();
-                videoElement.play().catch(e => console.warn('Erro ao forçar reprodução:', e));
-            }
-        }, 2000);
-        
-    })
-    .catch(err => {
-        console.error('❌ Erro na configuração básica:', err);
-        mostrarNotificacao('❌ Câmera não disponível. Use "Teste Manual".', 'error');
-        
-        video.innerHTML = `
-            <div style="
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                height: 300px;
-                background: #f3f4f6;
-                color: #374151;
-                text-align: center;
-                flex-direction: column;
-                border-radius: 8px;
-            ">
-                <i class="fas fa-camera-slash text-4xl mb-4 text-gray-400"></i>
-                <h3 class="text-lg font-semibold mb-2">Câmera Indisponível</h3>
-                <p class="text-sm mb-4">Use o botão "Teste Manual" para inserir códigos</p>
-                <button onclick="testarCodigoManual()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg">
-                    <i class="fas fa-keyboard mr-2"></i>Teste Manual
-                </button>
-            </div>
-        `;
-    });
-}
-
-function pararScanner() {
-    if (!scannerAtivo) return;
-    
-    try {
-        // Parar o Quagga
-        Quagga.stop();
-        
-        // Limpar listeners
-        Quagga.offDetected();
-        Quagga.offProcessed();
-        
-        // Parar todas as streams de mídia ativas
-        const video = document.getElementById('video');
-        const videoElement = video.querySelector('video');
-        if (videoElement && videoElement.srcObject) {
-            const tracks = videoElement.srcObject.getTracks();
-            tracks.forEach(track => {
-                track.stop();
-                console.log('Track parado:', track.kind);
-            });
-            videoElement.srcObject = null;
+        if (videoEl.videoWidth > 0 && videoEl.videoHeight > 0) {
+            console.log(`✅ Vídeo funcionando: ${videoEl.videoWidth}x${videoEl.videoHeight}`);
+        } else {
+            console.log("⚠️ Vídeo sem dimensões, tentando recarregar...");
+            videoEl.play().catch(e => console.log('Erro ao reproduzir vídeo:', e));
         }
-        
-        // Limpar o conteúdo do video
-        video.innerHTML = '';
-        video.style.background = '#f3f4f6';
-        
-        scannerAtivo = false;
-        document.getElementById('scanner-overlay').style.display = 'flex';
-        
-        // Limpar o canvas overlay se existir
-        const canvas = document.querySelector('#video canvas');
-        if (canvas) {
-            const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-        }
-        
-        // Remover loading se ainda existir
-        const loading = document.getElementById('camera-loading');
-        if (loading) loading.remove();
-        
-        mostrarNotificacao('Scanner parado e câmera liberada', 'info');
-    } catch (error) {
-        console.error('Erro ao parar scanner:', error);
-        scannerAtivo = false;
-        document.getElementById('scanner-overlay').style.display = 'flex';
-        
-        // Forçar limpeza mesmo com erro
-        const video = document.getElementById('video');
-        video.innerHTML = '';
-        video.style.background = '#f3f4f6';
+    } else {
+        console.log("❌ Elemento de vídeo não encontrado");
     }
 }
 
-// Função de teste da câmera (debug)
-function testarCamera() {
-    const video = document.getElementById('video');
-    
-    // Parar scanner se estiver ativo
-    if (scannerAtivo) {
-        pararScanner();
-    }
-    
-    // Limpar qualquer conteúdo anterior
-    video.innerHTML = '';
-    video.style.background = '#000000';
-    
-    mostrarNotificacao('🧪 Testando acesso direto à câmera...', 'info');
-    
-    // Criar elemento video nativo para teste
-    const videoElement = document.createElement('video');
-    videoElement.autoplay = true;
-    videoElement.playsInline = true;
-    videoElement.muted = true;
-    videoElement.style.cssText = `
-        width: 100%;
-        height: 300px;
-        object-fit: cover;
-        background: #000;
-        border-radius: 8px;
-    `;
-    
-    video.appendChild(videoElement);
-    
-    navigator.mediaDevices.getUserMedia({
-        video: {
-            facingMode: "environment",
-            width: { ideal: 640 },
-            height: { ideal: 480 }
-        }
-    })
-    .then(stream => {
-        videoElement.srcObject = stream;
-        
-        videoElement.onloadedmetadata = () => {
-            const width = videoElement.videoWidth;
-            const height = videoElement.videoHeight;
-            console.log(`✅ Teste de câmera: ${width}x${height}`);
-            mostrarNotificacao(`✅ Câmera OK! ${width}x${height} - Teste por 5s`, 'success');
-        };
-        
-        // Parar após 5 segundos
-        setTimeout(() => {
-            stream.getTracks().forEach(track => {
-                track.stop();
-                console.log(`🛑 Track parado: ${track.kind}`);
-            });
-            video.innerHTML = '';
-            video.style.background = '#f3f4f6';
-            mostrarNotificacao('🏁 Teste de câmera finalizado - Câmera liberada', 'info');
-        }, 5000);
-        
-    })
-    .catch(err => {
-        console.error('❌ Erro no teste:', err);
-        mostrarNotificacao(`❌ Teste falhou: ${err.name}`, 'error');
-        
-        let mensagem = 'Teste de câmera falhou';
-        if (err.name === 'NotAllowedError') {
-            mensagem = 'Permissão negada - Permita acesso à câmera';
-        } else if (err.name === 'NotFoundError') {
-            mensagem = 'Nenhuma câmera encontrada';
-        }
-        
-        video.innerHTML = `
-            <div style="
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                height: 300px;
-                background: #fee2e2;
-                color: #991b1b;
-                text-align: center;
-                flex-direction: column;
-                border-radius: 8px;
-                border: 2px solid #fca5a5;
-            ">
-                <i class="fas fa-exclamation-triangle text-4xl mb-4"></i>
-                <h3 class="text-lg font-semibold mb-2">${mensagem}</h3>
-                <p class="text-sm mb-4">Erro: ${err.message}</p>
-                <div class="space-x-2">
-                    <button onclick="testarCamera()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm">
-                        <i class="fas fa-redo mr-2"></i>Tentar Novamente
-                    </button>
-                    <button onclick="testarCodigoManual()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm">
-                        <i class="fas fa-keyboard mr-2"></i>Teste Manual
-                    </button>
-                </div>
-            </div>
-        `;
-    });
-}
-
-// Função para forçar reinicialização da câmera quando ela fica preta
 function reiniciarCamera() {
-    console.log('🔄 Forçando reinicialização da câmera...');
-    
-    // Parar tudo primeiro
-    if (scannerAtivo) {
-        pararScanner();
-    }
-    
-    // Aguardar um pouco e tentar novamente
-    setTimeout(() => {
-        mostrarNotificacao('🔄 Reiniciando câmera...', 'info');
-        
-        // Tentar configuração básica primeiro
-        tentarConfiguracaoBasica();
-        
-        // Se não funcionar, mostrar opções
-        setTimeout(() => {
-            const video = document.getElementById('video');
-            const videoEl = video.querySelector('video');
-            
-            if (!videoEl || videoEl.videoWidth === 0) {
-                console.warn('⚠️ Câmera ainda com problemas após reinicialização');
-                
-                video.innerHTML = `
-                    <div style="
-                        background: #f3f4f6;
-                        border-radius: 8px;
-                        padding: 20px;
-                        text-align: center;
-                        color: #374151;
-                    ">
-                        <i class="fas fa-exclamation-triangle text-3xl mb-3 text-yellow-500"></i>
-                        <h3 class="text-lg font-semibold mb-3">Câmera com Problemas</h3>
-                        <p class="text-sm mb-4">A câmera pode estar sendo usada por outro aplicativo ou há um problema de compatibilidade.</p>
-                        
-                        <div class="flex flex-col gap-2 max-w-xs mx-auto">
-                            <button onclick="iniciarScanner()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg">
-                                <i class="fas fa-camera mr-2"></i>Tentar Scanner Novamente
-                            </button>
-                            <button onclick="testarCamera()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg">
-                                <i class="fas fa-flask mr-2"></i>Teste de Câmera
-                            </button>
-                            <button onclick="testarCodigoManual()" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg">
-                                <i class="fas fa-keyboard mr-2"></i>Inserir Manualmente
-                            </button>
-                        </div>
-                        
-                        <div class="mt-4 text-xs text-gray-500">
-                            <p>💡 Dicas:</p>
-                            <p>• Feche outros apps que usam a câmera</p>
-                            <p>• Recarregue a página (F5)</p>
-                            <p>• Verifique permissões do navegador</p>
-                        </div>
-                    </div>
-                `;
-            }
-        }, 3000);
-        
-    }, 500);
+    console.log("Restarting camera...");
+    iniciarScanner();
 }
 
 function playBeep() {
@@ -1860,8 +1702,6 @@ function confirmarPagamentoDinheiro() {
     atualizarCarrinho();
     atualizarRelatorioVendas();
     atualizarContadores();
-    
-    mostrarNotificacao(`Pagamento confirmado! Troco: R$ ${troco.toFixed(2)}`, 'success');
 }
 
 function adicionarDinheiroRecebidoAoCaixa(valor) {
