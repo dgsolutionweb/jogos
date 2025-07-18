@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Teste de Função</title>
+</head>
+<body>
+    <button onclick="testarFuncao()">Testar showSection</button>
+    
+    <script src="script.js"></script>
+    <script>
+        function testarFuncao() {
+            if (typeof showSection === 'function') {
+                alert('✅ Função showSection encontrada!');
+                console.log('showSection está definida');
+            } else {
+                alert('❌ Função showSection NÃO encontrada!');
+                console.error('showSection não está definida');
+            }
+        }
+        
+        // Testar se o script carregou
+        window.addEventListener('load', () => {
+            console.log('Script carregado');
+            if (typeof showSection === 'function') {
+                console.log('✅ showSection OK');
+            } else {
+                console.error('❌ showSection não encontrada');
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,9 +1,14 @@
+// Debug: Script iniciando
+console.log('🚀 Script iniciando...');
+
 // Variáveis globais
 let produtos = JSON.parse(localStorage.getItem('produtos')) || [];
 let carrinho = [];
 let vendas = JSON.parse(localStorage.getItem('vendas')) || [];
 let scannerAtivo = false;
 let produtoAtual = null;
+
+console.log('✅ Variáveis globais carregadas', { produtos: produtos.length });
 
 // Sistema de dinheiro
 let caixa = JSON.parse(localStorage.getItem('caixa')) || {
@@ -56,18 +61,31 @@ document.addEventListener('DOMContentLoaded', function() {
     // Carregar dados salvos
     carregarDadosSalvos();
     
-    // Inicializar interface
-    atualizarContadores();
-    atualizarListaProdutos();
-    atualizarRelatorioVendas();
-    atualizarCaixa();
-    atualizarListaCartoes();
-    atualizarHistoricoTransacoes();
+    // Inicializar interface - com verificações
+    setTimeout(() => {
+        atualizarContadores();
+        atualizarListaProdutos();
+        atualizarRelatorioVendas();
+        atualizarCaixa();
+        atualizarListaCartoes();
+        atualizarHistoricoTransacoes();
+    }, 200);
     
-    // Event listeners
-    document.getElementById('formProduto').addEventListener('submit', cadastrarProduto);
-    document.getElementById('buscarProduto').addEventListener('input', filtrarProdutos);
-    document.getElementById('filtroCategoria').addEventListener('change', filtrarProdutos);
+    // Event listeners - com verificações
+    const formProduto = document.getElementById('formProduto');
+    if (formProduto) {
+        formProduto.addEventListener('submit', cadastrarProduto);
+    }
+    
+    const buscarProduto = document.getElementById('buscarProduto');
+    if (buscarProduto) {
+        buscarProduto.addEventListener('input', filtrarProdutos);
+    }
+    
+    const filtroCategoria = document.getElementById('filtroCategoria');
+    if (filtroCategoria) {
+        filtroCategoria.addEventListener('change', filtrarProdutos);
+    }
     document.getElementById('formCartao').addEventListener('submit', criarCartao);
     
     // Auto-save a cada 30 segundos
@@ -89,16 +107,37 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Navegação entre seções
 function showSection(sectionName) {
-    document.querySelectorAll('.section').forEach(section => {
+    console.log('📍 showSection chamada:', sectionName);
+    
+    // Verificar se existem seções
+    const sections = document.querySelectorAll('.section');
+    if (sections.length === 0) {
+        console.warn('⚠️ Nenhuma seção encontrada no DOM');
+        return;
+    }
+    
+    sections.forEach(section => {
         section.classList.add('hidden');
     });
-    document.getElementById(sectionName).classList.remove('hidden');
+    
+    // Verificar se a seção alvo existe
+    const targetSection = document.getElementById(sectionName);
+    if (!targetSection) {
+        console.error('❌ Seção não encontrada:', sectionName);
+        return;
+    }
+    
+    targetSection.classList.remove('hidden');
     
     // Atualizar botões de navegação
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.classList.remove('ring-2', 'ring-white');
     });
-    event.target.classList.add('ring-2', 'ring-white');
+    if (event && event.target) {
+        event.target.classList.add('ring-2', 'ring-white');
+    }
+    
+    console.log('✅ Seção alterada para:', sectionName);
 }
 
 // Cadastro de produtos
@@ -152,79 +191,136 @@ function gerarCodigoAleatorio() {
     return codigo;
 }
 
-// Scanner de código de barras
+// Scanner de código de barras - versão melhorada
 function iniciarScanner() {
     if (scannerAtivo) return;
     
-    // Verificar se a API de mídia está disponível
+    // Verificar suporte à câmera
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        alert('Sua câmera não está disponível ou o navegador não suporta acesso à câmera. Tente usar um navegador mais recente.');
+        alert('❌ Câmera não suportada neste navegador!\n\nTente usar:\n• Chrome\n• Firefox\n• Edge\n• Safari');
         return;
     }
     
+    // Primeiro, testar se conseguimos acessar a câmera
+    navigator.mediaDevices.getUserMedia({ 
+        video: { 
+            facingMode: "environment",
+            width: { ideal: 640 },
+            height: { ideal: 480 }
+        } 
+    })
+    .then(stream => {
+        // Se chegou aqui, a câmera funciona
+        stream.getTracks().forEach(track => track.stop()); // Parar o teste
+        
+        // Agora iniciar o Quagga
+        iniciarQuaggaScanner();
+    })
+    .catch(err => {
+        console.error('Erro de acesso à câmera:', err);
+        
+        let mensagem = '❌ Não foi possível acessar a câmera!\n\n';
+        
+        if (err.name === 'NotAllowedError') {
+            mensagem += 'Permissão negada:\n• Clique no ícone de câmera na barra de endereço\n• Permita o acesso\n• Recarregue a página';
+        } else if (err.name === 'NotFoundError') {
+            mensagem += 'Câmera não encontrada:\n• Verifique se há uma câmera conectada\n• Feche outros apps que usam a câmera';
+        } else {
+            mensagem += 'Erro: ' + err.message + '\n\nTente:\n• Recarregar a página\n• Usar outro navegador\n• Verificar se está em HTTPS';
+        }
+        
+        alert(mensagem);
+    });
+}
+
+function iniciarQuaggaScanner() {
     document.getElementById('scanner-overlay').style.display = 'none';
     scannerAtivo = true;
     
-    // Mostrar loading
+    // Preparar o container
     const video = document.getElementById('video');
-    video.style.background = '#f3f4f6';
-    video.innerHTML = '<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;"><i class="fas fa-spinner fa-spin text-2xl"></i><br>Carregando câmera...</div>';
+    video.innerHTML = '';
+    video.style.background = '#000000';
+    video.style.minHeight = '300px';
     
-    // Configuração do Quagga com melhor tratamento de erro
+    // Loading
+    const loadingDiv = document.createElement('div');
+    loadingDiv.id = 'camera-loading';
+    loadingDiv.style.cssText = `
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: white;
+        text-align: center;
+        z-index: 10;
+        background: rgba(0,0,0,0.8);
+        padding: 20px;
+        border-radius: 10px;
+        font-size: 16px;
+    `;
+    loadingDiv.innerHTML = '<i class="fas fa-spinner fa-spin text-3xl mb-3"></i><br>Iniciando scanner...';
+    
+    const container = document.getElementById('scanner-container');
+    container.appendChild(loadingDiv);
+    
+    // Configuração do Quagga
     Quagga.init({
         inputStream: {
             name: "Live",
             type: "LiveStream",
-            target: document.querySelector('#video'),
+            target: video,
             constraints: {
                 width: { min: 320, ideal: 640, max: 1280 },
                 height: { min: 240, ideal: 480, max: 720 },
-                facingMode: "environment", // Câmera traseira
-                aspectRatio: { min: 1, max: 2 }
+                facingMode: "environment"
             }
         },
         locator: {
             patchSize: "medium",
             halfSample: true
         },
-        numOfWorkers: 2,
+        numOfWorkers: Math.min(navigator.hardwareConcurrency || 2, 4),
         frequency: 10,
         decoder: {
             readers: [
                 "code_128_reader",
                 "ean_reader",
-                "ean_8_reader", 
+                "ean_8_reader",
                 "code_39_reader",
-                "code_39_vin_reader",
-                "codabar_reader",
-                "upc_reader",
-                "upc_e_reader",
-                "i2of5_reader"
+                "upc_reader"
             ]
         },
         locate: true
     }, function(err) {
+        // Remover loading
+        const loading = document.getElementById('camera-loading');
+        if (loading) loading.remove();
+        
         if (err) {
-            console.error('Erro ao inicializar scanner:', err);
+            console.error('Erro do Quagga:', err);
             scannerAtivo = false;
             document.getElementById('scanner-overlay').style.display = 'flex';
-            
-            // Tratar diferentes tipos de erro
-            if (err.name === 'NotAllowedError') {
-                alert('❌ Permissão de câmera negada!\n\nPara usar o scanner:\n1. Clique no ícone de câmera na barra de endereço\n2. Permita o acesso à câmera\n3. Recarregue a página e tente novamente');
-            } else if (err.name === 'NotFoundError') {
-                alert('❌ Nenhuma câmera encontrada!\n\nVerifique se:\n1. Seu dispositivo tem uma câmera\n2. A câmera não está sendo usada por outro aplicativo\n3. Tente recarregar a página');
-            } else if (err.name === 'NotSupportedError') {
-                alert('❌ Câmera não suportada!\n\nTente:\n1. Usar um navegador mais recente\n2. Verificar se está em HTTPS\n3. Testar em outro dispositivo');
-            } else {
-                alert('❌ Erro ao acessar a câmera!\n\nTentativas de solução:\n1. Recarregue a página\n2. Verifique as permissões do navegador\n3. Tente usar outro navegador\n\nErro: ' + err.message);
-            }
+            alert('❌ Erro ao inicializar o scanner:\n' + err.message + '\n\nTente recarregar a página.');
             return;
         }
         
-        console.log('Scanner iniciado com sucesso');
-        mostrarNotificacao('Scanner iniciado! Aponte para um código de barras', 'success');
+        console.log('✅ Quagga iniciado com sucesso');
+        mostrarNotificacao('✅ Scanner ativo! Aponte para um código de barras', 'success');
+        
+        // Iniciar detecção
         Quagga.start();
+        
+        // Verificar se o vídeo está funcionando
+        setTimeout(() => {
+            const videoEl = document.querySelector('#video video');
+            if (videoEl) {
+                if (videoEl.videoWidth === 0 || videoEl.videoHeight === 0) {
+                    console.warn('⚠️ Vídeo sem dimensões');
+                    mostrarNotificacao('⚠️ Problema com a câmera. Clique em "Testar Câmera"', 'warning');
+                }
+            }
+        }, 3000);
     });
     
     // Listener para códigos detectados
@@ -299,11 +395,28 @@ function pararScanner() {
     if (!scannerAtivo) return;
     
     try {
+        // Parar o Quagga
         Quagga.stop();
         
         // Limpar listeners
         Quagga.offDetected();
         Quagga.offProcessed();
+        
+        // Parar todas as streams de mídia ativas
+        const video = document.getElementById('video');
+        const videoElement = video.querySelector('video');
+        if (videoElement && videoElement.srcObject) {
+            const tracks = videoElement.srcObject.getTracks();
+            tracks.forEach(track => {
+                track.stop();
+                console.log('Track parado:', track.kind);
+            });
+            videoElement.srcObject = null;
+        }
+        
+        // Limpar o conteúdo do video
+        video.innerHTML = '';
+        video.style.background = '#f3f4f6';
         
         scannerAtivo = false;
         document.getElementById('scanner-overlay').style.display = 'flex';
@@ -315,111 +428,74 @@ function pararScanner() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
         }
         
-        mostrarNotificacao('Scanner parado', 'info');
+        // Remover loading se ainda existir
+        const loading = document.getElementById('camera-loading');
+        if (loading) loading.remove();
+        
+        mostrarNotificacao('Scanner parado e câmera liberada', 'info');
     } catch (error) {
         console.error('Erro ao parar scanner:', error);
         scannerAtivo = false;
         document.getElementById('scanner-overlay').style.display = 'flex';
+        
+        // Forçar limpeza mesmo com erro
+        const video = document.getElementById('video');
+        video.innerHTML = '';
+        video.style.background = '#f3f4f6';
     }
 }
 
-function alternarCamera() {
-    if (!scannerAtivo) {
-        iniciarScanner();
-        return;
-    }
+// Função de teste da câmera (debug)
+function testarCamera() {
+    const video = document.getElementById('video');
     
-    pararScanner();
+    // Limpar qualquer conteúdo anterior
+    video.innerHTML = '';
+    video.style.background = '#000000';
     
-    // Aguardar um tempo antes de reiniciar para evitar conflitos
-    setTimeout(() => {
-        // Tentar usar câmera frontal se estava usando traseira
-        const constraints = Quagga.CameraAccess.getActiveStreamLabel().includes('back') ? 
-            { facingMode: "user" } : { facingMode: "environment" };
+    // Criar elemento video nativo para teste
+    const videoElement = document.createElement('video');
+    videoElement.autoplay = true;
+    videoElement.playsInline = true;
+    videoElement.muted = true;
+    videoElement.style.width = '100%';
+    videoElement.style.height = '300px';
+    videoElement.style.objectFit = 'cover';
+    
+    video.appendChild(videoElement);
+    
+    navigator.mediaDevices.getUserMedia({
+        video: {
+            facingMode: "environment",
+            width: { ideal: 640 },
+            height: { ideal: 480 }
+        }
+    })
+    .then(stream => {
+        videoElement.srcObject = stream;
+        mostrarNotificacao('✅ Teste de câmera: Sucesso!', 'success');
+        console.log('Câmera funcionando corretamente');
         
-        document.getElementById('scanner-overlay').style.display = 'none';
-        scannerAtivo = true;
+        // Parar após 5 segundos
+        setTimeout(() => {
+            stream.getTracks().forEach(track => track.stop());
+            video.innerHTML = '';
+            video.style.background = '#f3f4f6';
+            mostrarNotificacao('Teste de câmera finalizado', 'info');
+        }, 5000);
+    })
+    .catch(err => {
+        console.error('Erro no teste de câmera:', err);
+        mostrarNotificacao('❌ Erro no teste de câmera: ' + err.message, 'error');
         
-        Quagga.init({
-            inputStream: {
-                name: "Live",
-                type: "LiveStream",
-                target: document.querySelector('#video'),
-                constraints: {
-                    width: { min: 320, ideal: 640, max: 1280 },
-                    height: { min: 240, ideal: 480, max: 720 },
-                    ...constraints
-                }
-            },
-            locator: {
-                patchSize: "medium",
-                halfSample: true
-            },
-            numOfWorkers: 2,
-            frequency: 10,
-            decoder: {
-                readers: [
-                    "code_128_reader",
-                    "ean_reader",
-                    "ean_8_reader", 
-                    "code_39_reader",
-                    "code_39_vin_reader",
-                    "codabar_reader",
-                    "upc_reader",
-                    "upc_e_reader",
-                    "i2of5_reader"
-                ]
-            },
-            locate: true
-        }, function(err) {
-            if (err) {
-                console.error('Erro ao alternar câmera:', err);
-                scannerAtivo = false;
-                document.getElementById('scanner-overlay').style.display = 'flex';
-                alert('Erro ao alternar câmera. Usando câmera padrão.');
-                // Tentar iniciar com configuração padrão
-                iniciarScanner();
-                return;
-            }
-            
-            Quagga.start();
-            mostrarNotificacao('Câmera alternada com sucesso!', 'success');
-        });
-        
-        // Re-adicionar listeners
-        Quagga.onDetected(function(data) {
-            const codigo = data.codeResult.code;
-            if (!codigo || codigo.length < 3) return;
-            
-            document.getElementById('codigoLido').textContent = codigo;
-            
-            const produto = produtos.find(p => p.codigo === codigo);
-            
-            if (produto) {
-                produtoAtual = produto;
-                document.getElementById('produtoEncontrado').classList.remove('hidden');
-                document.getElementById('produtoNaoEncontrado').classList.add('hidden');
-                document.getElementById('infoProduto').innerHTML = `
-                    <div class="font-semibold text-lg">${produto.nome}</div>
-                    <div class="text-green-600 font-bold text-xl">R$ ${produto.preco.toFixed(2)}</div>
-                    <div class="text-gray-600">${getCategoriaIcon(produto.categoria)} ${produto.categoria}</div>
-                    <div class="text-xs text-gray-500 mt-1">Código: ${produto.codigo}</div>
-                `;
-                mostrarNotificacao(`Produto encontrado: ${produto.nome}`, 'success');
-            } else {
-                produtoAtual = null;
-                document.getElementById('produtoEncontrado').classList.add('hidden');
-                document.getElementById('produtoNaoEncontrado').classList.remove('hidden');
-                mostrarNotificacao('Produto não encontrado no sistema', 'warning');
-            }
-            
-            playBeep();
-            if (navigator.vibrate) {
-                navigator.vibrate([100, 50, 100]);
-            }
-        });
-        
-    }, 1000);
+        video.innerHTML = `
+            <div style="color: white; text-align: center; padding: 50px;">
+                <i class="fas fa-exclamation-triangle text-3xl mb-4"></i><br>
+                Erro: ${err.message}<br>
+                <small>Verifique as permissões da câmera</small>
+            </div>
+        `;
+    });
 }
 
 function playBeep() {
@@ -665,9 +741,23 @@ function atualizarRelatorioVendas() {
 }
 
 function atualizarContadores() {
-    const totalVendas = vendas.reduce((sum, venda) => sum + venda.total, 0);
-    document.getElementById('totalVendas').textContent = totalVendas.toFixed(2);
-    document.getElementById('totalProdutos').textContent = produtos.length;
+    try {
+        const totalVendas = vendas.reduce((sum, venda) => sum + venda.total, 0);
+        
+        const totalVendasEl = document.getElementById('totalVendas');
+        if (totalVendasEl) {
+            totalVendasEl.textContent = totalVendas.toFixed(2);
+        }
+        
+        const totalProdutosEl = document.getElementById('totalProdutos');
+        if (totalProdutosEl) {
+            totalProdutosEl.textContent = produtos.length;
+        }
+        
+        console.log('📊 Contadores atualizados:', { vendas: totalVendas, produtos: produtos.length });
+    } catch (error) {
+        console.error('❌ Erro ao atualizar contadores:', error);
+    }
 }
 
 // Visualizar etiquetas antes de imprimir
@@ -2191,13 +2281,29 @@ function handleSwipe() {
 
 // Adicionar botão de configurações no header
 function adicionarBotaoConfiguracoes() {
-    const header = document.querySelector('header .container');
-    const botaoConfig = document.createElement('button');
-    botaoConfig.innerHTML = '<i class="fas fa-cog"></i>';
-    botaoConfig.className = 'bg-white bg-opacity-20 hover:bg-opacity-30 text-white p-2 rounded-full transition-all';
-    botaoConfig.onclick = mostrarMenuConfiguracoes;
-    
-    header.appendChild(botaoConfig);
+    try {
+        const header = document.querySelector('header .container');
+        if (!header) {
+            console.warn('⚠️ Header não encontrado - botão de configurações não será adicionado');
+            return;
+        }
+        
+        // Verificar se já existe
+        if (header.querySelector('.config-btn')) {
+            console.log('📌 Botão de configurações já existe');
+            return;
+        }
+        
+        const botaoConfig = document.createElement('button');
+        botaoConfig.innerHTML = '<i class="fas fa-cog"></i>';
+        botaoConfig.className = 'config-btn bg-white bg-opacity-20 hover:bg-opacity-30 text-white p-2 rounded-full transition-all';
+        botaoConfig.onclick = mostrarMenuConfiguracoes;
+        
+        header.appendChild(botaoConfig);
+        console.log('✅ Botão de configurações adicionado');
+    } catch (error) {
+        console.error('❌ Erro ao adicionar botão de configurações:', error);
+    }
 }
 
 function mostrarMenuConfiguracoes() {
@@ -2255,5 +2361,49 @@ setTimeout(() => {
     adicionarBotaoConfiguracoes();
 }, 1000);
 
-// Mostrar seção inicial
-showSection('cadastro');
+// Mostrar seção inicial - só após DOM carregado
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        showSection('cadastro');
+    }, 100);
+});
+
+// Se o DOM já estiver carregado
+if (document.readyState === 'loading') {
+    // DOM ainda carregando
+    console.log('⏳ Aguardando DOM carregar...');
+} else {
+    // DOM já carregado
+    setTimeout(() => {
+        showSection('cadastro');
+    }, 100);
+}
+
+// Função para alternar câmera
+function alternarCamera() {
+    if (!scannerAtivo) {
+        iniciarScanner();
+        return;
+    }
+    
+    pararScanner();
+    
+    // Aguardar um tempo antes de reiniciar para evitar conflitos
+    setTimeout(() => {
+        iniciarScanner();
+    }, 1000);
+}
+
+// Debug: Confirmar que funções estão carregadas
+console.log('🔧 Funções carregadas:', {
+    showSection: typeof showSection,
+    iniciarScanner: typeof iniciarScanner,
+    alternarCamera: typeof alternarCamera
+});
+
+// Tornar funções globais (backup)
+window.showSection = showSection;
+window.iniciarScanner = iniciarScanner;
+window.alternarCamera = alternarCamera;
+
+console.log('✅ Script totalmente carregado!');
