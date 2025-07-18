@@ -240,8 +240,13 @@ function iniciarQuaggaScanner() {
     // Preparar o container
     const video = document.getElementById('video');
     video.innerHTML = '';
-    video.style.background = '#000000';
-    video.style.minHeight = '300px';
+    video.style.cssText = `
+        background: #000000;
+        min-height: 300px;
+        position: relative;
+        border-radius: 8px;
+        overflow: hidden;
+    `;
     
     // Loading
     const loadingDiv = document.createElement('div');
@@ -264,34 +269,40 @@ function iniciarQuaggaScanner() {
     const container = document.getElementById('scanner-container');
     container.appendChild(loadingDiv);
     
-    // Configuração do Quagga
+    // Configuração melhorada do Quagga para evitar tela preta
     Quagga.init({
         inputStream: {
             name: "Live",
             type: "LiveStream",
             target: video,
             constraints: {
-                width: { min: 320, ideal: 640, max: 1280 },
-                height: { min: 240, ideal: 480, max: 720 },
-                facingMode: "environment"
+                width: { min: 320, ideal: 640, max: 800 },
+                height: { min: 240, ideal: 480, max: 600 },
+                facingMode: "environment",
+                aspectRatio: { ideal: 4/3 }
+            },
+            area: { // Define área de escaneamento
+                top: "10%",
+                right: "10%",
+                left: "10%",
+                bottom: "10%"
             }
         },
         locator: {
             patchSize: "medium",
-            halfSample: true
+            halfSample: false // Não reduzir qualidade
         },
-        numOfWorkers: Math.min(navigator.hardwareConcurrency || 2, 4),
-        frequency: 10,
+        numOfWorkers: 2, // Fixo em 2 para estabilidade
+        frequency: 8, // Reduzir frequência para melhor performance
         decoder: {
             readers: [
                 "code_128_reader",
                 "ean_reader",
-                "ean_8_reader",
-                "code_39_reader",
-                "upc_reader"
+                "ean_8_reader"
             ]
         },
-        locate: true
+        locate: true,
+        debug: false // Desabilitar debug para evitar conflitos
     }, function(err) {
         // Remover loading
         const loading = document.getElementById('camera-loading');
@@ -301,7 +312,12 @@ function iniciarQuaggaScanner() {
             console.error('Erro do Quagga:', err);
             scannerAtivo = false;
             document.getElementById('scanner-overlay').style.display = 'flex';
-            alert('❌ Erro ao inicializar o scanner:\n' + err.message + '\n\nTente recarregar a página.');
+            
+            // Tentar novamente com configurações mais básicas
+            setTimeout(() => {
+                tentarConfiguracaoBasica();
+            }, 1000);
+            
             return;
         }
         
@@ -311,16 +327,80 @@ function iniciarQuaggaScanner() {
         // Iniciar detecção
         Quagga.start();
         
-        // Verificar se o vídeo está funcionando
+        // Aguardar e configurar vídeo adequadamente
         setTimeout(() => {
             const videoEl = document.querySelector('#video video');
+            const canvasEl = document.querySelector('#video canvas');
+            
             if (videoEl) {
-                if (videoEl.videoWidth === 0 || videoEl.videoHeight === 0) {
-                    console.warn('⚠️ Vídeo sem dimensões');
-                    mostrarNotificacao('⚠️ Problema com a câmera. Clique em "Testar Câmera"', 'warning');
+                console.log('🎥 Configurando elemento de vídeo...');
+                
+                // Forçar estilos corretos no vídeo
+                videoEl.style.cssText = `
+                    width: 100% !important;
+                    height: 300px !important;
+                    object-fit: cover !important;
+                    background: #000 !important;
+                    display: block !important;
+                    border-radius: 8px;
+                `;
+                
+                // Verificar se o vídeo tem conteúdo
+                const checkVideo = () => {
+                    if (videoEl.videoWidth > 0 && videoEl.videoHeight > 0) {
+                        console.log(`✅ Vídeo funcionando: ${videoEl.videoWidth}x${videoEl.videoHeight}`);
+                        
+                        // Configurar canvas se existir
+                        if (canvasEl) {
+                            canvasEl.style.cssText = `
+                                position: absolute !important;
+                                top: 0 !important;
+                                left: 0 !important;
+                                width: 100% !important;
+                                height: 100% !important;
+                                pointer-events: none !important;
+                                z-index: 2 !important;
+                            `;
+                        }
+                        
+                        // Garantir reprodução
+                        videoEl.play().catch(e => {
+                            console.warn('Aviso ao reproduzir vídeo:', e);
+                        });
+                        
+                    } else {
+                        console.warn('⚠️ Vídeo sem dimensões válidas');
+                        
+                        // Tentar reativar
+                        setTimeout(() => {
+                            if (videoEl.srcObject) {
+                                videoEl.load();
+                                videoEl.play().catch(e => console.log('Erro ao recarregar:', e));
+                            }
+                        }, 500);
+                    }
+                };
+                
+                // Verificar quando o vídeo carregar metadados
+                if (videoEl.readyState >= 1) {
+                    checkVideo();
+                } else {
+                    videoEl.addEventListener('loadedmetadata', checkVideo, { once: true });
                 }
+                
+                // Fallback após 3 segundos
+                setTimeout(() => {
+                    if (videoEl.videoWidth === 0) {
+                        console.warn('⚠️ Vídeo ainda sem dimensões após 3s, tentando fallback');
+                        mostrarNotificacao('⚠️ Problemas com câmera. Tente "Testar Câmera"', 'warning');
+                    }
+                }, 3000);
+                
+            } else {
+                console.error('❌ Elemento de vídeo não encontrado');
+                mostrarNotificacao('❌ Erro no vídeo. Tente "Testar Câmera"', 'error');
             }
-        }, 3000);
+        }, 1500);
     });
     
     // Listener para códigos detectados
@@ -391,6 +471,115 @@ function iniciarQuaggaScanner() {
     });
 }
 
+// Função de fallback para configuração básica da câmera
+function tentarConfiguracaoBasica() {
+    console.log('🔄 Tentando configuração básica da câmera...');
+    
+    const video = document.getElementById('video');
+    
+    // Limpar completamente
+    video.innerHTML = '';
+    video.style.cssText = `
+        background: #000000;
+        min-height: 300px;
+        position: relative;
+        border-radius: 8px;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    `;
+    
+    // Mostrar loading
+    video.innerHTML = '<div style="color: white; text-align: center;"><i class="fas fa-spinner fa-spin text-2xl mb-2"></i><br>Conectando câmera...</div>';
+    
+    // Tentar acesso direto à câmera com configurações mais simples
+    navigator.mediaDevices.getUserMedia({
+        video: {
+            facingMode: "environment",
+            width: { ideal: 480 },
+            height: { ideal: 360 }
+        }
+    })
+    .then(stream => {
+        // Limpar loading
+        video.innerHTML = '';
+        video.style.display = 'block';
+        
+        // Criar elemento video diretamente
+        const videoElement = document.createElement('video');
+        videoElement.autoplay = true;
+        videoElement.playsInline = true;
+        videoElement.muted = true;
+        videoElement.controls = false;
+        
+        videoElement.style.cssText = `
+            width: 100% !important;
+            height: 300px !important;
+            object-fit: cover !important;
+            background: #000 !important;
+            display: block !important;
+            border-radius: 8px;
+        `;
+        
+        videoElement.srcObject = stream;
+        video.appendChild(videoElement);
+        
+        // Aguardar carregamento dos metadados
+        videoElement.onloadedmetadata = () => {
+            console.log(`✅ Configuração básica funcionou! ${videoElement.videoWidth}x${videoElement.videoHeight}`);
+            mostrarNotificacao('✅ Câmera funcionando! Use "Teste Manual" para inserir códigos', 'success');
+            
+            // Garantir que está reproduzindo
+            videoElement.play().catch(e => {
+                console.warn('Aviso ao reproduzir:', e);
+            });
+        };
+        
+        videoElement.onerror = (e) => {
+            console.error('❌ Erro no vídeo básico:', e);
+            mostrarNotificacao('❌ Erro na câmera. Tente recarregar a página.', 'error');
+        };
+        
+        // Verificar após 2 segundos se está funcionando
+        setTimeout(() => {
+            if (videoElement.videoWidth === 0 || videoElement.videoHeight === 0) {
+                console.warn('⚠️ Vídeo básico sem dimensões');
+                
+                // Tentar forçar reprodução
+                videoElement.load();
+                videoElement.play().catch(e => console.warn('Erro ao forçar reprodução:', e));
+            }
+        }, 2000);
+        
+    })
+    .catch(err => {
+        console.error('❌ Erro na configuração básica:', err);
+        mostrarNotificacao('❌ Câmera não disponível. Use "Teste Manual".', 'error');
+        
+        video.innerHTML = `
+            <div style="
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                height: 300px;
+                background: #f3f4f6;
+                color: #374151;
+                text-align: center;
+                flex-direction: column;
+                border-radius: 8px;
+            ">
+                <i class="fas fa-camera-slash text-4xl mb-4 text-gray-400"></i>
+                <h3 class="text-lg font-semibold mb-2">Câmera Indisponível</h3>
+                <p class="text-sm mb-4">Use o botão "Teste Manual" para inserir códigos</p>
+                <button onclick="testarCodigoManual()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg">
+                    <i class="fas fa-keyboard mr-2"></i>Teste Manual
+                </button>
+            </div>
+        `;
+    });
+}
+
 function pararScanner() {
     if (!scannerAtivo) return;
     
@@ -449,18 +638,29 @@ function pararScanner() {
 function testarCamera() {
     const video = document.getElementById('video');
     
+    // Parar scanner se estiver ativo
+    if (scannerAtivo) {
+        pararScanner();
+    }
+    
     // Limpar qualquer conteúdo anterior
     video.innerHTML = '';
     video.style.background = '#000000';
+    
+    mostrarNotificacao('🧪 Testando acesso direto à câmera...', 'info');
     
     // Criar elemento video nativo para teste
     const videoElement = document.createElement('video');
     videoElement.autoplay = true;
     videoElement.playsInline = true;
     videoElement.muted = true;
-    videoElement.style.width = '100%';
-    videoElement.style.height = '300px';
-    videoElement.style.objectFit = 'cover';
+    videoElement.style.cssText = `
+        width: 100%;
+        height: 300px;
+        object-fit: cover;
+        background: #000;
+        border-radius: 8px;
+    `;
     
     video.appendChild(videoElement);
     
@@ -473,29 +673,126 @@ function testarCamera() {
     })
     .then(stream => {
         videoElement.srcObject = stream;
-        mostrarNotificacao('✅ Teste de câmera: Sucesso!', 'success');
-        console.log('Câmera funcionando corretamente');
+        
+        videoElement.onloadedmetadata = () => {
+            const width = videoElement.videoWidth;
+            const height = videoElement.videoHeight;
+            console.log(`✅ Teste de câmera: ${width}x${height}`);
+            mostrarNotificacao(`✅ Câmera OK! ${width}x${height} - Teste por 5s`, 'success');
+        };
         
         // Parar após 5 segundos
         setTimeout(() => {
-            stream.getTracks().forEach(track => track.stop());
+            stream.getTracks().forEach(track => {
+                track.stop();
+                console.log(`🛑 Track parado: ${track.kind}`);
+            });
             video.innerHTML = '';
             video.style.background = '#f3f4f6';
-            mostrarNotificacao('Teste de câmera finalizado', 'info');
+            mostrarNotificacao('🏁 Teste de câmera finalizado - Câmera liberada', 'info');
         }, 5000);
+        
     })
     .catch(err => {
-        console.error('Erro no teste de câmera:', err);
-        mostrarNotificacao('❌ Erro no teste de câmera: ' + err.message, 'error');
+        console.error('❌ Erro no teste:', err);
+        mostrarNotificacao(`❌ Teste falhou: ${err.name}`, 'error');
+        
+        let mensagem = 'Teste de câmera falhou';
+        if (err.name === 'NotAllowedError') {
+            mensagem = 'Permissão negada - Permita acesso à câmera';
+        } else if (err.name === 'NotFoundError') {
+            mensagem = 'Nenhuma câmera encontrada';
+        }
         
         video.innerHTML = `
-            <div style="color: white; text-align: center; padding: 50px;">
-                <i class="fas fa-exclamation-triangle text-3xl mb-4"></i><br>
-                Erro: ${err.message}<br>
-                <small>Verifique as permissões da câmera</small>
+            <div style="
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                height: 300px;
+                background: #fee2e2;
+                color: #991b1b;
+                text-align: center;
+                flex-direction: column;
+                border-radius: 8px;
+                border: 2px solid #fca5a5;
+            ">
+                <i class="fas fa-exclamation-triangle text-4xl mb-4"></i>
+                <h3 class="text-lg font-semibold mb-2">${mensagem}</h3>
+                <p class="text-sm mb-4">Erro: ${err.message}</p>
+                <div class="space-x-2">
+                    <button onclick="testarCamera()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm">
+                        <i class="fas fa-redo mr-2"></i>Tentar Novamente
+                    </button>
+                    <button onclick="testarCodigoManual()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm">
+                        <i class="fas fa-keyboard mr-2"></i>Teste Manual
+                    </button>
+                </div>
             </div>
         `;
     });
+}
+
+// Função para forçar reinicialização da câmera quando ela fica preta
+function reiniciarCamera() {
+    console.log('🔄 Forçando reinicialização da câmera...');
+    
+    // Parar tudo primeiro
+    if (scannerAtivo) {
+        pararScanner();
+    }
+    
+    // Aguardar um pouco e tentar novamente
+    setTimeout(() => {
+        mostrarNotificacao('🔄 Reiniciando câmera...', 'info');
+        
+        // Tentar configuração básica primeiro
+        tentarConfiguracaoBasica();
+        
+        // Se não funcionar, mostrar opções
+        setTimeout(() => {
+            const video = document.getElementById('video');
+            const videoEl = video.querySelector('video');
+            
+            if (!videoEl || videoEl.videoWidth === 0) {
+                console.warn('⚠️ Câmera ainda com problemas após reinicialização');
+                
+                video.innerHTML = `
+                    <div style="
+                        background: #f3f4f6;
+                        border-radius: 8px;
+                        padding: 20px;
+                        text-align: center;
+                        color: #374151;
+                    ">
+                        <i class="fas fa-exclamation-triangle text-3xl mb-3 text-yellow-500"></i>
+                        <h3 class="text-lg font-semibold mb-3">Câmera com Problemas</h3>
+                        <p class="text-sm mb-4">A câmera pode estar sendo usada por outro aplicativo ou há um problema de compatibilidade.</p>
+                        
+                        <div class="flex flex-col gap-2 max-w-xs mx-auto">
+                            <button onclick="iniciarScanner()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg">
+                                <i class="fas fa-camera mr-2"></i>Tentar Scanner Novamente
+                            </button>
+                            <button onclick="testarCamera()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg">
+                                <i class="fas fa-flask mr-2"></i>Teste de Câmera
+                            </button>
+                            <button onclick="testarCodigoManual()" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg">
+                                <i class="fas fa-keyboard mr-2"></i>Inserir Manualmente
+                            </button>
+                        </div>
+                        
+                        <div class="mt-4 text-xs text-gray-500">
+                            <p>💡 Dicas:</p>
+                            <p>• Feche outros apps que usam a câmera</p>
+                            <p>• Recarregue a página (F5)</p>
+                            <p>• Verifique permissões do navegador</p>
+                        </div>
+                    </div>
+                `;
+            }
+        }, 3000);
+        
+    }, 500);
 }
 
 function playBeep() {
