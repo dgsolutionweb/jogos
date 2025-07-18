@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>🛒 Super Mercado Interativo</title>
+
+    <!-- PWA Meta Tags -->
+    <meta name="description"
+        content="Jogo educativo de supermercado com scanner de código de barras, sistema de pagamento e impressão de etiquetas">
+    <meta name="theme-color" content="#3B82F6">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Super Mercado">
+    <meta name="mobile-web-app-capable" content="yes">
+
+    <!-- PWA Icons -->
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+    <link rel="apple-touch-icon" href="icon-192.png">
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+
+    <!-- External Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/quagga@0.12.1/dist/quagga.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="bg-gradient-to-br from-blue-50 to-green-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-blue-600 to-green-600 text-white p-4 shadow-lg">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-3xl font-bold flex items-center">
+                🛒 Super Mercado Interativo
+            </h1>
+            <div class="flex space-x-4">
+                <span class="bg-white text-blue-600 px-3 py-1 rounded-full font-semibold">
+                    💰 R$ <span id="totalVendas">0,00</span>
+                </span>
+                <span class="bg-white text-green-600 px-3 py-1 rounded-full font-semibold">
+                    📦 <span id="totalProdutos">0</span> produtos
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="bg-white shadow-md p-4">
+        <div class="container mx-auto">
+            <div class="flex space-x-4">
+                <button onclick="showSection('cadastro')"
+                    class="nav-btn bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors">
+                    <i class="fas fa-plus mr-2"></i>Cadastrar Produto
+                </button>
+                <button onclick="showSection('scanner')"
+                    class="nav-btn bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg transition-colors">
+                    <i class="fas fa-camera mr-2"></i>Scanner
+                </button>
+                <button onclick="showSection('estoque')"
+                    class="nav-btn bg-purple-500 hover:bg-purple-600 text-white px-6 py-2 rounded-lg transition-colors">
+                    <i class="fas fa-boxes mr-2"></i>Estoque
+                </button>
+                <button onclick="showSection('caixa')"
+                    class="nav-btn bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg transition-colors">
+                    <i class="fas fa-cash-register mr-2"></i>Caixa
+                </button>
+                <button onclick="showSection('dinheiro')"
+                    class="nav-btn bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-2 rounded-lg transition-colors">
+                    <i class="fas fa-money-bill mr-2"></i>Dinheiro
+                </button>
+                <button onclick="showSection('cartao')"
+                    class="nav-btn bg-indigo-500 hover:bg-indigo-600 text-white px-6 py-2 rounded-lg transition-colors">
+                    <i class="fas fa-credit-card mr-2"></i>Cartão
+                </button>
+                <button onclick="imprimirEtiquetas()"
+                    class="nav-btn bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-lg transition-colors">
+                    <i class="fas fa-print mr-2"></i>Imprimir Etiquetas
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto p-6">
+        <!-- Seção Cadastro -->
+        <div id="cadastro" class="section">
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                    <i class="fas fa-plus-circle text-blue-500 mr-3"></i>
+                    Cadastrar Novo Produto
+                </h2>
+                <form id="formProduto" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-2">Nome do Produto</label>
+                        <input type="text" id="nomeProduto"
+                            class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="Ex: Coca-Cola 350ml" required>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-2">Preço (R$)</label>
+                        <input type="number" id="precoProduto" step="0.01"
+                            class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="Ex: 4.50" required>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-2">Código de Barras</label>
+                        <input type="text" id="codigoProduto"
+                            class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="Ex: 7891234567890">
+                        <button type="button" onclick="gerarCodigoAleatorio()"
+                            class="mt-2 text-blue-500 hover:text-blue-700 text-sm">
+                            <i class="fas fa-random mr-1"></i>Gerar código aleatório
+                        </button>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-2">Categoria</label>
+                        <select id="categoriaProduto"
+                            class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="bebidas">🥤 Bebidas</option>
+                            <option value="alimentos">🍞 Alimentos</option>
+                            <option value="limpeza">🧽 Limpeza</option>
+                            <option value="higiene">🧴 Higiene</option>
+                            <option value="doces">🍭 Doces</option>
+                            <option value="outros">📦 Outros</option>
+                        </select>
+                    </div>
+                    <div class="md:col-span-2">
+                        <button type="submit"
+                            class="w-full bg-gradient-to-r from-blue-500 to-green-500 text-white py-3 px-6 rounded-lg font-semibold hover:from-blue-600 hover:to-green-600 transition-all transform hover:scale-105">
+                            <i class="fas fa-save mr-2"></i>Cadastrar Produto
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Seção Scanner -->
+        <div id="scanner" class="section hidden">
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                    <i class="fas fa-camera text-green-500 mr-3"></i>
+                    Scanner de Código de Barras
+                </h2>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div>
+                        <div id="scanner-container" class="relative">
+                            <video id="video" class="w-full rounded-lg border-4 border-green-300"></video>
+                            <div id="scanner-overlay"
+                                class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-lg">
+                                <button onclick="iniciarScanner()"
+                                    class="bg-green-500 hover:bg-green-600 text-white px-8 py-4 rounded-lg font-semibold text-lg">
+                                    <i class="fas fa-camera mr-2"></i>Iniciar Scanner
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mt-4 text-center">
+                            <button onclick="pararScanner()"
+                                class="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-lg mr-2">
+                                <i class="fas fa-stop mr-2"></i>Parar
+                            </button>
+                            <button onclick="alternarCamera()"
+                                class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg">
+                                <i class="fas fa-sync mr-2"></i>Trocar Câmera
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="bg-gray-50 rounded-lg p-4 mb-4">
+                            <h3 class="font-semibold text-gray-700 mb-2">Último código lido:</h3>
+                            <div id="codigoLido" class="text-2xl font-mono bg-white p-3 rounded border text-center">
+                                Nenhum código lido
+                            </div>
+                        </div>
+                        <div id="produtoEncontrado" class="hidden bg-green-50 border border-green-200 rounded-lg p-4">
+                            <h3 class="font-semibold text-green-700 mb-2">Produto Encontrado:</h3>
+                            <div id="infoProduto"></div>
+                            <button onclick="adicionarAoCarrinho()"
+                                class="mt-3 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg w-full">
+                                <i class="fas fa-cart-plus mr-2"></i>Adicionar ao Carrinho
+                            </button>
+                        </div>
+                        <div id="produtoNaoEncontrado" class="hidden bg-red-50 border border-red-200 rounded-lg p-4">
+                            <h3 class="font-semibold text-red-700 mb-2">Produto não encontrado!</h3>
+                            <p class="text-red-600">Este código não está cadastrado no sistema.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Seção Estoque -->
+        <div id="estoque" class="section hidden">
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                    <i class="fas fa-boxes text-purple-500 mr-3"></i>
+                    Estoque de Produtos
+                </h2>
+                <div class="mb-4 flex flex-wrap gap-4">
+                    <input type="text" id="buscarProduto" placeholder="Buscar produto..."
+                        class="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                    <select id="filtroCategoria"
+                        class="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                        <option value="">Todas as categorias</option>
+                        <option value="bebidas">🥤 Bebidas</option>
+                        <option value="alimentos">🍞 Alimentos</option>
+                        <option value="limpeza">� Limpeza</option>
+                        <option value="higiene">🧴 Higiene</option>
+                        <option value="doces">🍭 Doces</option>
+                        <option value="outros">📦 Outros</option>
+                    </select>
+                </div>
+                <div id="listaProdutos" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Produtos serão inseridos aqui -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Seção Caixa -->
+        <div id="caixa" class="section hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                        <i class="fas fa-shopping-cart text-orange-500 mr-3"></i>
+                        Carrinho de Compras
+                    </h2>
+                    <div id="itensCarrinho" class="space-y-3 mb-4 max-h-96 overflow-y-auto">
+                        <div class="text-center text-gray-500 py-8">
+                            <i class="fas fa-shopping-cart text-4xl mb-2"></i>
+                            <p>Carrinho vazio</p>
+                        </div>
+                    </div>
+                    <div class="border-t pt-4">
+                        <div class="flex justify-between items-center text-xl font-bold">
+                            <span>Total:</span>
+                            <span class="text-green-600">R$ <span id="totalCarrinho">0,00</span></span>
+                        </div>
+                        <button onclick="finalizarCompra()"
+                            class="w-full mt-4 bg-gradient-to-r from-orange-500 to-red-500 text-white py-3 px-6 rounded-lg font-semibold hover:from-orange-600 hover:to-red-600 transition-all">
+                            <i class="fas fa-credit-card mr-2"></i>Finalizar Compra
+                        </button>
+                        <button onclick="limparCarrinho()"
+                            class="w-full mt-2 bg-gray-500 hover:bg-gray-600 text-white py-2 px-6 rounded-lg">
+                            <i class="fas fa-trash mr-2"></i>Limpar Carrinho
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                        <i class="fas fa-chart-line text-blue-500 mr-3"></i>
+                        Relatório de Vendas
+                    </h2>
+                    <div class="space-y-4">
+                        <div class="bg-blue-50 p-4 rounded-lg">
+                            <div class="flex justify-between items-center">
+                                <span class="text-blue-700 font-semibold">Vendas Hoje:</span>
+                                <span class="text-blue-800 font-bold text-xl">R$ <span
+                                        id="vendasHoje">0,00</span></span>
+                            </div>
+                        </div>
+                        <div class="bg-green-50 p-4 rounded-lg">
+                            <div class="flex justify-between items-center">
+                                <span class="text-green-700 font-semibold">Produtos Vendidos:</span>
+                                <span class="text-green-800 font-bold text-xl"><span
+                                        id="produtosVendidos">0</span></span>
+                            </div>
+                        </div>
+                        <div class="bg-purple-50 p-4 rounded-lg">
+                            <div class="flex justify-between items-center">
+                                <span class="text-purple-700 font-semibold">Transações:</span>
+                                <span class="text-purple-800 font-bold text-xl"><span
+                                        id="totalTransacoes">0</span></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-6">
+                        <h3 class="font-semibold text-gray-700 mb-3">Últimas Vendas:</h3>
+                        <div id="ultimasVendas" class="space-y-2 max-h-48 overflow-y-auto">
+                            <p class="text-gray-500 text-center py-4">Nenhuma venda realizada</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Seção Dinheiro -->
+        <div id="dinheiro" class="section hidden">
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                    <i class="fas fa-money-bill text-yellow-500 mr-3"></i>
+                    Sistema de Dinheiro Físico
+                </h2>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Caixa Registradora -->
+                    <div
+                        class="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg p-6 border-2 border-yellow-200">
+                        <h3 class="text-xl font-bold text-yellow-800 mb-4 flex items-center">
+                            <i class="fas fa-cash-register mr-2"></i>Caixa Registradora
+                        </h3>
+
+                        <div class="space-y-4">
+                            <div class="bg-white rounded-lg p-4 shadow-sm">
+                                <h4 class="font-semibold text-gray-700 mb-3">Dinheiro no Caixa:</h4>
+                                <div class="grid grid-cols-2 gap-3 text-sm">
+                                    <div class="flex justify-between">
+                                        <span>💵 R$ 100,00:</span>
+                                        <span id="notas100" class="font-bold">0</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>💵 R$ 50,00:</span>
+                                        <span id="notas50" class="font-bold">0</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>💵 R$ 20,00:</span>
+                                        <span id="notas20" class="font-bold">0</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>💵 R$ 10,00:</span>
+                                        <span id="notas10" class="font-bold">0</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>💵 R$ 5,00:</span>
+                                        <span id="notas5" class="font-bold">0</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>💵 R$ 2,00:</span>
+                                        <span id="notas2" class="font-bold">0</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>🪙 R$ 1,00:</span>
+                                        <span id="moedas1" class="font-bold">0</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>🪙 R$ 0,50:</span>
+                                        <span id="moedas050" class="font-bold">0</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>🪙 R$ 0,25:</span>
+                                        <span id="moedas025" class="font-bold">0</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>🪙 R$ 0,10:</span>
+                                        <span id="moedas010" class="font-bold">0</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>🪙 R$ 0,05:</span>
+                                        <span id="moedas005" class="font-bold">0</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>🪙 R$ 0,01:</span>
+                                        <span id="moedas001" class="font-bold">0</span>
+                                    </div>
+                                </div>
+                                <div class="border-t mt-4 pt-4">
+                                    <div class="flex justify-between text-lg font-bold text-green-600">
+                                        <span>Total no Caixa:</span>
+                                        <span>R$ <span id="totalCaixa">0,00</span></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-white rounded-lg p-4 shadow-sm">
+                                <h4 class="font-semibold text-gray-700 mb-3">Adicionar Dinheiro ao Caixa:</h4>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <button onclick="adicionarDinheiro(100)"
+                                        class="bg-green-500 hover:bg-green-600 text-white p-2 rounded text-sm">+R$100</button>
+                                    <button onclick="adicionarDinheiro(50)"
+                                        class="bg-green-500 hover:bg-green-600 text-white p-2 rounded text-sm">+R$50</button>
+                                    <button onclick="adicionarDinheiro(20)"
+                                        class="bg-green-500 hover:bg-green-600 text-white p-2 rounded text-sm">+R$20</button>
+                                    <button onclick="adicionarDinheiro(10)"
+                                        class="bg-green-500 hover:bg-green-600 text-white p-2 rounded text-sm">+R$10</button>
+                                    <button onclick="adicionarDinheiro(5)"
+                                        class="bg-green-500 hover:bg-green-600 text-white p-2 rounded text-sm">+R$5</button>
+                                    <button onclick="adicionarDinheiro(2)"
+                                        class="bg-green-500 hover:bg-green-600 text-white p-2 rounded text-sm">+R$2</button>
+                                    <button onclick="adicionarDinheiro(1)"
+                                        class="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded text-sm">+R$1</button>
+                                    <button onclick="adicionarDinheiro(0.50)"
+                                        class="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded text-sm">+R$0,50</button>
+                                    <button onclick="adicionarDinheiro(0.25)"
+                                        class="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded text-sm">+R$0,25</button>
+                                    <button onclick="adicionarDinheiro(0.10)"
+                                        class="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded text-sm">+R$0,10</button>
+                                    <button onclick="adicionarDinheiro(0.05)"
+                                        class="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded text-sm">+R$0,05</button>
+                                    <button onclick="adicionarDinheiro(0.01)"
+                                        class="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded text-sm">+R$0,01</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Simulador de Pagamento -->
+                    <div class="bg-gradient-to-br from-green-50 to-blue-50 rounded-lg p-6 border-2 border-green-200">
+                        <h3 class="text-xl font-bold text-green-800 mb-4 flex items-center">
+                            <i class="fas fa-calculator mr-2"></i>Simulador de Pagamento
+                        </h3>
+
+                        <div class="space-y-4">
+                            <div class="bg-white rounded-lg p-4 shadow-sm">
+                                <div class="flex justify-between items-center mb-4">
+                                    <span class="font-semibold">Valor a Pagar:</span>
+                                    <span class="text-2xl font-bold text-red-600">R$ <span
+                                            id="valorPagar">0,00</span></span>
+                                </div>
+                                <div class="flex justify-between items-center mb-4">
+                                    <span class="font-semibold">Valor Recebido:</span>
+                                    <span class="text-2xl font-bold text-blue-600">R$ <span
+                                            id="valorRecebido">0,00</span></span>
+                                </div>
+                                <div class="flex justify-between items-center border-t pt-4">
+                                    <span class="font-semibold">Troco:</span>
+                                    <span class="text-2xl font-bold text-green-600">R$ <span
+                                            id="valorTroco">0,00</span></span>
+                                </div>
+                            </div>
+
+                            <div class="bg-white rounded-lg p-4 shadow-sm">
+                                <h4 class="font-semibold text-gray-700 mb-3">Cliente Pagou com:</h4>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <button onclick="clientePagou(100)"
+                                        class="bg-yellow-500 hover:bg-yellow-600 text-white p-2 rounded text-sm">R$100</button>
+                                    <button onclick="clientePagou(50)"
+                                        class="bg-yellow-500 hover:bg-yellow-600 text-white p-2 rounded text-sm">R$50</button>
+                                    <button onclick="clientePagou(20)"
+                                        class="bg-yellow-500 hover:bg-yellow-600 text-white p-2 rounded text-sm">R$20</button>
+                                    <button onclick="clientePagou(10)"
+                                        class="bg-yellow-500 hover:bg-yellow-600 text-white p-2 rounded text-sm">R$10</button>
+                                    <button onclick="clientePagou(5)"
+                                        class="bg-yellow-500 hover:bg-yellow-600 text-white p-2 rounded text-sm">R$5</button>
+                                    <button onclick="clientePagou(2)"
+                                        class="bg-yellow-500 hover:bg-yellow-600 text-white p-2 rounded text-sm">R$2</button>
+                                    <button onclick="clientePagou(1)"
+                                        class="bg-orange-500 hover:bg-orange-600 text-white p-2 rounded text-sm">R$1</button>
+                                    <button onclick="clientePagou(0.50)"
+                                        class="bg-orange-500 hover:bg-orange-600 text-white p-2 rounded text-sm">R$0,50</button>
+                                    <button onclick="clientePagou(0.25)"
+                                        class="bg-orange-500 hover:bg-orange-600 text-white p-2 rounded text-sm">R$0,25</button>
+                                    <button onclick="clientePagou(0.10)"
+                                        class="bg-orange-500 hover:bg-orange-600 text-white p-2 rounded text-sm">R$0,10</button>
+                                    <button onclick="clientePagou(0.05)"
+                                        class="bg-orange-500 hover:bg-orange-600 text-white p-2 rounded text-sm">R$0,05</button>
+                                    <button onclick="clientePagou(0.01)"
+                                        class="bg-orange-500 hover:bg-orange-600 text-white p-2 rounded text-sm">R$0,01</button>
+                                </div>
+                                <div class="mt-4 flex gap-2">
+                                    <button onclick="limparPagamento()"
+                                        class="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-2 rounded">
+                                        <i class="fas fa-eraser mr-2"></i>Limpar
+                                    </button>
+                                    <button onclick="confirmarPagamentoDinheiro()"
+                                        class="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded">
+                                        <i class="fas fa-check mr-2"></i>Confirmar
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="trocoDetalhado" class="bg-white rounded-lg p-4 shadow-sm hidden">
+                                <h4 class="font-semibold text-gray-700 mb-3">Troco Detalhado:</h4>
+                                <div id="trocoBreakdown" class="text-sm space-y-1"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6 text-center">
+                    <button onclick="imprimirDinheiro()"
+                        class="bg-yellow-500 hover:bg-yellow-600 text-white px-8 py-3 rounded-lg font-semibold">
+                        <i class="fas fa-print mr-2"></i>Imprimir Dinheiro para Recortar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Seção Cartão de Crédito -->
+        <div id="cartao" class="section hidden">
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                    <i class="fas fa-credit-card text-indigo-500 mr-3"></i>
+                    Sistema de Cartão de Crédito
+                </h2>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Gerenciar Cartões -->
+                    <div
+                        class="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg p-6 border-2 border-indigo-200">
+                        <h3 class="text-xl font-bold text-indigo-800 mb-4 flex items-center">
+                            <i class="fas fa-wallet mr-2"></i>Meus Cartões
+                        </h3>
+
+                        <div class="space-y-4">
+                            <!-- Criar Novo Cartão -->
+                            <div class="bg-white rounded-lg p-4 shadow-sm">
+                                <h4 class="font-semibold text-gray-700 mb-3">Criar Novo Cartão:</h4>
+                                <form id="formCartao" class="space-y-3">
+                                    <input type="text" id="nomeCartao" placeholder="Nome do portador"
+                                        class="w-full p-2 border rounded-lg" required>
+                                    <input type="number" id="saldoInicial" placeholder="Saldo inicial (R$)" step="0.01"
+                                        class="w-full p-2 border rounded-lg" required>
+                                    <button type="submit"
+                                        class="w-full bg-indigo-500 hover:bg-indigo-600 text-white py-2 rounded-lg">
+                                        <i class="fas fa-plus mr-2"></i>Criar Cartão
+                                    </button>
+                                </form>
+                            </div>
+
+                            <!-- Lista de Cartões -->
+                            <div class="bg-white rounded-lg p-4 shadow-sm">
+                                <h4 class="font-semibold text-gray-700 mb-3">Cartões Cadastrados:</h4>
+                                <div id="listaCartoes" class="space-y-3">
+                                    <p class="text-gray-500 text-center py-4">Nenhum cartão cadastrado</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Terminal de Pagamento -->
+                    <div class="bg-gradient-to-br from-gray-50 to-blue-50 rounded-lg p-6 border-2 border-gray-200">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-credit-card mr-2"></i>Terminal de Pagamento
+                        </h3>
+
+                        <div class="space-y-4">
+                            <!-- Scanner de Cartão -->
+                            <div class="bg-white rounded-lg p-4 shadow-sm">
+                                <h4 class="font-semibold text-gray-700 mb-3">Scanner de Cartão:</h4>
+                                <div
+                                    class="bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                                    <i class="fas fa-credit-card text-4xl text-gray-400 mb-2"></i>
+                                    <p class="text-gray-600 mb-4">Use o scanner para ler o código do cartão</p>
+                                    <button onclick="iniciarScannerCartao()"
+                                        class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg">
+                                        <i class="fas fa-camera mr-2"></i>Escanear Cartão
+                                    </button>
+                                </div>
+
+                                <div id="cartaoLido"
+                                    class="hidden mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                                    <h5 class="font-semibold text-green-700 mb-2">Cartão Detectado:</h5>
+                                    <div id="infoCartaoLido"></div>
+                                </div>
+                            </div>
+
+                            <!-- Pagamento -->
+                            <div class="bg-white rounded-lg p-4 shadow-sm">
+                                <h4 class="font-semibold text-gray-700 mb-3">Processar Pagamento:</h4>
+                                <div class="space-y-3">
+                                    <div class="flex justify-between items-center">
+                                        <span>Valor da Compra:</span>
+                                        <span class="text-xl font-bold text-red-600">R$ <span
+                                                id="valorCompraCartao">0,00</span></span>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span>Saldo do Cartão:</span>
+                                        <span class="text-xl font-bold text-blue-600">R$ <span
+                                                id="saldoCartaoAtual">0,00</span></span>
+                                    </div>
+                                    <div class="flex justify-between items-center border-t pt-3">
+                                        <span>Saldo Após Pagamento:</span>
+                                        <span class="text-xl font-bold text-green-600">R$ <span
+                                                id="saldoAposPagamento">0,00</span></span>
+                                    </div>
+
+                                    <div class="flex gap-2 mt-4">
+                                        <button onclick="cancelarPagamentoCartao()"
+                                            class="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-2 rounded-lg">
+                                            <i class="fas fa-times mr-2"></i>Cancelar
+                                        </button>
+                                        <button onclick="confirmarPagamentoCartao()"
+                                            class="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg">
+                                            <i class="fas fa-check mr-2"></i>Pagar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Histórico de Transações -->
+                            <div class="bg-white rounded-lg p-4 shadow-sm">
+                                <h4 class="font-semibold text-gray-700 mb-3">Últimas Transações:</h4>
+                                <div id="historicoTransacoes" class="space-y-2 max-h-48 overflow-y-auto">
+                                    <p class="text-gray-500 text-center py-4">Nenhuma transação realizada</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6 text-center">
+                    <button onclick="imprimirCartoes()"
+                        class="bg-indigo-500 hover:bg-indigo-600 text-white px-8 py-3 rounded-lg font-semibold">
+                        <i class="fas fa-print mr-2"></i>Imprimir Cartões para Recortar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Sucesso -->
+    <div id="modalSucesso" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-xl p-8 max-w-md mx-4 text-center">
+            <div class="text-6xl mb-4">🎉</div>
+            <h3 class="text-2xl font-bold text-green-600 mb-2">Compra Finalizada!</h3>
+            <p class="text-gray-600 mb-4">Obrigado pela sua compra!</p>
+            <div class="text-xl font-semibold text-green-600 mb-4">
+                Total: R$ <span id="totalFinal">0,00</span>
+            </div>
+            <button onclick="fecharModal()" class="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg">
+                OK
+            </button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+
+    <!-- PWA Installation Script -->
+    <script>
+        // Detectar se já está instalado como PWA
+        if (window.matchMedia('(display-mode: standalone)').matches) {
+            console.log('App rodando como PWA instalado');
+            document.body.classList.add('pwa-mode');
+        }
+
+        // Prevenir zoom duplo toque no iOS
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', function (event) {
+            const now = (new Date()).getTime();
+            if (now - lastTouchEnd <= 300) {
+                event.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, false);
+
+        // Prevenir scroll bounce no iOS
+        document.body.addEventListener('touchstart', function (e) {
+            if (e.touches.length === 1) {
+                const touch = e.touches[0];
+                if (touch.clientY === 0) {
+                    e.preventDefault();
+                }
+            }
+        }, { passive: false });
+
+        document.body.addEventListener('touchmove', function (e) {
+            if (e.touches.length === 1) {
+                const touch = e.touches[0];
+                if (touch.clientY === 0) {
+                    e.preventDefault();
+                }
+            }
+        }, { passive: false });
+    </script>
+</body>
+
+</html>

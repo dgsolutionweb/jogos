@@ -1,0 +1,691 @@
+/* Estilos customizados para o Super Mercado Interativo */
+
+/* Animações personalizadas */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+    }
+    to {
+        transform: translateX(0);
+    }
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+}
+
+@keyframes bounce {
+    0%, 20%, 53%, 80%, 100% {
+        transform: translate3d(0,0,0);
+    }
+    40%, 43% {
+        transform: translate3d(0, -30px, 0);
+    }
+    70% {
+        transform: translate3d(0, -15px, 0);
+    }
+    90% {
+        transform: translate3d(0, -4px, 0);
+    }
+}
+
+/* Aplicar animações */
+.section {
+    animation: fadeIn 0.5s ease-in-out;
+}
+
+.nav-btn {
+    transition: all 0.3s ease;
+}
+
+.nav-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Estilos para o scanner */
+#video {
+    border-radius: 12px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+#scanner-overlay {
+    backdrop-filter: blur(4px);
+    border-radius: 12px;
+}
+
+/* Estilos para produtos */
+.produto-card {
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.produto-card:hover {
+    transform: translateY(-5px);
+    border-color: #3B82F6;
+    box-shadow: 0 10px 25px rgba(59, 130, 246, 0.15);
+}
+
+/* Estilos para o carrinho */
+.carrinho-item {
+    transition: all 0.3s ease;
+    border-left: 4px solid transparent;
+}
+
+.carrinho-item:hover {
+    border-left-color: #10B981;
+    background-color: #F0FDF4;
+}
+
+/* Estilos para botões */
+.btn-primary {
+    background: linear-gradient(135deg, #3B82F6, #1D4ED8);
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #2563EB, #1E40AF);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.25);
+}
+
+.btn-success {
+    background: linear-gradient(135deg, #10B981, #059669);
+    transition: all 0.3s ease;
+}
+
+.btn-success:hover {
+    background: linear-gradient(135deg, #059669, #047857);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(16, 185, 129, 0.25);
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #EF4444, #DC2626);
+    transition: all 0.3s ease;
+}
+
+.btn-danger:hover {
+    background: linear-gradient(135deg, #DC2626, #B91C1C);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(239, 68, 68, 0.25);
+}
+
+/* Estilos para inputs */
+.form-input {
+    transition: all 0.3s ease;
+    border: 2px solid #E5E7EB;
+}
+
+.form-input:focus {
+    border-color: #3B82F6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    transform: translateY(-1px);
+}
+
+/* Estilos para cards */
+.card {
+    background: linear-gradient(135deg, #FFFFFF, #F9FAFB);
+    border: 1px solid #E5E7EB;
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+}
+
+/* Estilos para estatísticas */
+.stat-card {
+    background: linear-gradient(135deg, #F0F9FF, #E0F2FE);
+    border-left: 4px solid #3B82F6;
+    transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: scale(1.02);
+    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.15);
+}
+
+/* Estilos para notificações */
+.notification {
+    animation: slideIn 0.3s ease-out;
+    backdrop-filter: blur(8px);
+}
+
+/* Estilos para o modal */
+.modal {
+    backdrop-filter: blur(8px);
+    animation: fadeIn 0.3s ease-out;
+}
+
+.modal-content {
+    animation: bounce 0.6s ease-out;
+}
+
+/* Estilos para o código de barras lido */
+#codigoLido {
+    font-family: 'Courier New', monospace;
+    letter-spacing: 2px;
+    background: linear-gradient(135deg, #F3F4F6, #E5E7EB);
+    border: 2px dashed #9CA3AF;
+    transition: all 0.3s ease;
+}
+
+#codigoLido:not(:empty) {
+    background: linear-gradient(135deg, #DCFCE7, #BBF7D0);
+    border-color: #10B981;
+    color: #065F46;
+    animation: pulse 1s ease-in-out;
+}
+
+/* Estilos para categorias */
+.categoria-bebidas { border-left-color: #3B82F6; }
+.categoria-alimentos { border-left-color: #F59E0B; }
+.categoria-limpeza { border-left-color: #8B5CF6; }
+.categoria-higiene { border-left-color: #06B6D4; }
+.categoria-doces { border-left-color: #EC4899; }
+.categoria-outros { border-left-color: #6B7280; }
+
+/* Estilos PWA */
+.pwa-installed {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+.pwa-installed header {
+    padding-top: calc(env(safe-area-inset-top) + 1rem);
+}
+
+/* Estilos para instalação PWA */
+.install-prompt {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    right: 20px;
+    background: linear-gradient(135deg, #3B82F6, #1D4ED8);
+    color: white;
+    padding: 16px;
+    border-radius: 12px;
+    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3);
+    z-index: 1000;
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Estilos responsivos para mobile */
+@media (max-width: 768px) {
+    /* Header mobile */
+    header h1 {
+        font-size: 1.5rem;
+    }
+    
+    header .flex {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    
+    header span {
+        font-size: 0.75rem;
+        padding: 4px 8px;
+    }
+    
+    /* Navegação mobile */
+    nav .flex {
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: center;
+    }
+    
+    .nav-btn {
+        padding: 8px 12px;
+        font-size: 12px;
+        min-width: auto;
+        flex: 1;
+        text-align: center;
+    }
+    
+    .nav-btn i {
+        display: block;
+        margin-bottom: 4px;
+        margin-right: 0;
+    }
+    
+    /* Container mobile */
+    .container {
+        padding: 12px;
+    }
+    
+    /* Cards mobile */
+    .card, .bg-white {
+        margin: 8px 0;
+        padding: 16px;
+        border-radius: 12px;
+    }
+    
+    /* Grid responsivo */
+    .grid {
+        gap: 12px;
+    }
+    
+    .md\:grid-cols-2 {
+        grid-template-columns: 1fr;
+    }
+    
+    .lg\:grid-cols-3 {
+        grid-template-columns: 1fr;
+    }
+    
+    .lg\:grid-cols-2 {
+        grid-template-columns: 1fr;
+    }
+    
+    /* Scanner mobile */
+    #video {
+        width: 100%;
+        height: 250px;
+        object-fit: cover;
+    }
+    
+    #scanner-container {
+        max-width: 100%;
+    }
+    
+    /* Formulários mobile */
+    input, select, button {
+        font-size: 16px; /* Evita zoom no iOS */
+        padding: 12px;
+    }
+    
+    /* Botões mobile */
+    button {
+        min-height: 44px; /* Tamanho mínimo para toque */
+        touch-action: manipulation;
+    }
+    
+    /* Carrinho mobile */
+    #itensCarrinho {
+        max-height: 300px;
+    }
+    
+    /* Sistema de dinheiro mobile */
+    .grid-cols-3 {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+    
+    .grid-cols-2 {
+        grid-template-columns: 1fr;
+    }
+    
+    /* Modais mobile */
+    .modal .bg-white {
+        margin: 20px;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+    
+    /* Notificações mobile */
+    .notification {
+        left: 10px;
+        right: 10px;
+        top: 10px;
+    }
+    
+    /* Textos mobile */
+    h1 {
+        font-size: 1.5rem;
+    }
+    
+    h2 {
+        font-size: 1.25rem;
+    }
+    
+    h3 {
+        font-size: 1.125rem;
+    }
+    
+    /* Espaçamentos mobile */
+    .space-y-4 > * + * {
+        margin-top: 12px;
+    }
+    
+    .space-y-3 > * + * {
+        margin-top: 8px;
+    }
+    
+    /* Padding mobile */
+    .p-6 {
+        padding: 16px;
+    }
+    
+    .p-4 {
+        padding: 12px;
+    }
+    
+    /* Margens mobile */
+    .mb-6 {
+        margin-bottom: 16px;
+    }
+    
+    .mb-4 {
+        margin-bottom: 12px;
+    }
+}
+
+/* Estilos para telas muito pequenas */
+@media (max-width: 480px) {
+    .container {
+        padding: 8px;
+    }
+    
+    .nav-btn {
+        font-size: 10px;
+        padding: 6px 8px;
+    }
+    
+    .nav-btn i {
+        font-size: 14px;
+    }
+    
+    header h1 {
+        font-size: 1.25rem;
+    }
+    
+    .grid-cols-3 {
+        grid-template-columns: 1fr;
+    }
+    
+    /* Botões de dinheiro menores */
+    .bg-green-500, .bg-blue-500, .bg-yellow-500, .bg-orange-500 {
+        padding: 8px 4px;
+        font-size: 10px;
+    }
+}
+
+/* Estilos para modo paisagem mobile */
+@media (max-width: 768px) and (orientation: landscape) {
+    header {
+        padding: 8px 0;
+    }
+    
+    nav {
+        padding: 8px 0;
+    }
+    
+    .nav-btn {
+        padding: 4px 8px;
+        font-size: 11px;
+    }
+    
+    #video {
+        height: 200px;
+    }
+}
+
+/* Estilos para toque */
+@media (hover: none) and (pointer: coarse) {
+    button:hover {
+        transform: none;
+    }
+    
+    .hover\:shadow-lg:hover {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Feedback tátil para botões */
+    button:active {
+        transform: scale(0.95);
+        transition: transform 0.1s;
+    }
+}
+
+/* Estilos para modo escuro do sistema */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg-primary: #1F2937;
+        --bg-secondary: #374151;
+        --text-primary: #F9FAFB;
+        --text-secondary: #D1D5DB;
+        --border-color: #4B5563;
+    }
+    
+    body {
+        background: linear-gradient(135deg, #1F2937, #111827);
+        color: var(--text-primary);
+    }
+    
+    .bg-white {
+        background-color: var(--bg-secondary);
+        color: var(--text-primary);
+    }
+    
+    .text-gray-800 {
+        color: var(--text-primary);
+    }
+    
+    .text-gray-600 {
+        color: var(--text-secondary);
+    }
+    
+    .border-gray-300 {
+        border-color: var(--border-color);
+    }
+}
+
+/* Animações otimizadas para mobile */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Estilos para impressão mobile */
+@media print {
+    .nav-btn, nav, .notification {
+        display: none !important;
+    }
+    
+    body {
+        background: white !important;
+        color: black !important;
+    }
+    
+    .bg-gradient-to-br {
+        background: white !important;
+    }
+}
+
+/* Estilos para impressão */
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    
+    .print-area, .print-area * {
+        visibility: visible;
+    }
+    
+    .print-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+    }
+}
+
+/* Estilos para scrollbar customizada */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #F1F5F9;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #CBD5E1, #94A3B8);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #94A3B8, #64748B);
+}
+
+/* Estilos para loading */
+.loading {
+    position: relative;
+    overflow: hidden;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+    animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+/* Estilos para badges */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.badge-success {
+    background-color: #DCFCE7;
+    color: #166534;
+}
+
+.badge-warning {
+    background-color: #FEF3C7;
+    color: #92400E;
+}
+
+.badge-error {
+    background-color: #FEE2E2;
+    color: #991B1B;
+}
+
+.badge-info {
+    background-color: #DBEAFE;
+    color: #1E40AF;
+}
+
+/* Estilos para tooltips */
+.tooltip {
+    position: relative;
+    cursor: help;
+}
+
+.tooltip::before {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #1F2937;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+    z-index: 1000;
+}
+
+.tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #1F2937;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.tooltip:hover::before,
+.tooltip:hover::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(-5px);
+}
+
+/* Estilos para elementos destacados */
+.highlight {
+    background: linear-gradient(135deg, #FEF3C7, #FDE68A);
+    border: 2px solid #F59E0B;
+    animation: pulse 2s infinite;
+}
+
+/* Estilos para transições suaves */
+* {
+    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Estilos para foco acessível */
+button:focus,
+input:focus,
+select:focus {
+    outline: 2px solid #3B82F6;
+    outline-offset: 2px;
+}
+
+/* Estilos para modo escuro (preparação futura) */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg-primary: #1F2937;
+        --bg-secondary: #374151;
+        --text-primary: #F9FAFB;
+        --text-secondary: #D1D5DB;
+        --border-color: #4B5563;
+    }
+}

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gerador de Ícones - Super Mercado</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f0f0f0; }
+        .icon-container { display: flex; gap: 20px; flex-wrap: wrap; }
+        .icon-box { background: white; padding: 20px; border-radius: 10px; text-align: center; }
+        canvas { border: 1px solid #ddd; }
+        button { background: #3B82F6; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 10px; }
+        button:hover { background: #2563EB; }
+    </style>
+</head>
+<body>
+    <h1>🛒 Gerador de Ícones - Super Mercado Interativo</h1>
+    
+    <div class="icon-container">
+        <div class="icon-box">
+            <h3>Ícone 192x192</h3>
+            <canvas id="icon192" width="192" height="192"></canvas>
+            <br>
+            <button onclick="downloadIcon('icon192', 'icon-192.png')">Download PNG</button>
+        </div>
+        
+        <div class="icon-box">
+            <h3>Ícone 512x512</h3>
+            <canvas id="icon512" width="512" height="512"></canvas>
+            <br>
+            <button onclick="downloadIcon('icon512', 'icon-512.png')">Download PNG</button>
+        </div>
+    </div>
+
+    <script>
+        function createIcon(canvasId, size) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            
+            // Fundo gradiente
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#3B82F6');
+            gradient.addColorStop(1, '#1D4ED8');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+            
+            // Borda arredondada
+            ctx.globalCompositeOperation = 'destination-in';
+            ctx.beginPath();
+            ctx.roundRect(0, 0, size, size, size * 0.1);
+            ctx.fill();
+            ctx.globalCompositeOperation = 'source-over';
+            
+            // Carrinho de compras
+            ctx.fillStyle = 'white';
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = size * 0.02;
+            
+            // Corpo do carrinho
+            const cartSize = size * 0.6;
+            const cartX = size * 0.2;
+            const cartY = size * 0.25;
+            
+            ctx.beginPath();
+            ctx.rect(cartX, cartY, cartSize * 0.8, cartSize * 0.5);
+            ctx.stroke();
+            
+            // Alça do carrinho
+            ctx.beginPath();
+            ctx.arc(cartX - size * 0.05, cartY + size * 0.05, size * 0.03, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Rodas
+            ctx.beginPath();
+            ctx.arc(cartX + cartSize * 0.2, cartY + cartSize * 0.6, size * 0.04, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.arc(cartX + cartSize * 0.6, cartY + cartSize * 0.6, size * 0.04, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Produtos no carrinho
+            ctx.fillStyle = '#FEF3C7';
+            ctx.fillRect(cartX + size * 0.05, cartY + size * 0.05, size * 0.08, size * 0.08);
+            ctx.fillRect(cartX + size * 0.15, cartY + size * 0.05, size * 0.08, size * 0.08);
+            ctx.fillRect(cartX + size * 0.25, cartY + size * 0.05, size * 0.08, size * 0.08);
+            
+            // Símbolo R$
+            ctx.fillStyle = '#10B981';
+            ctx.font = `bold ${size * 0.15}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.fillText('R$', size * 0.8, size * 0.9);
+        }
+        
+        function downloadIcon(canvasId, filename) {
+            const canvas = document.getElementById(canvasId);
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+        
+        // Criar os ícones
+        createIcon('icon192', 192);
+        createIcon('icon512', 512);
+        
+        // Adicionar suporte para roundRect se não existir
+        if (!CanvasRenderingContext2D.prototype.roundRect) {
+            CanvasRenderingContext2D.prototype.roundRect = function(x, y, width, height, radius) {
+                this.beginPath();
+                this.moveTo(x + radius, y);
+                this.lineTo(x + width - radius, y);
+                this.quadraticCurveTo(x + width, y, x + width, y + radius);
+                this.lineTo(x + width, y + height - radius);
+                this.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+                this.lineTo(x + radius, y + height);
+                this.quadraticCurveTo(x, y + height, x, y + height - radius);
+                this.lineTo(x, y + radius);
+                this.quadraticCurveTo(x, y, x + radius, y);
+                this.closePath();
+            };
+        }
+    </script>
+</body>
+</html>
